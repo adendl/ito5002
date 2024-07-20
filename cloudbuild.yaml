@@ -6,3 +6,6 @@ steps:
 
 images:
   - 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
