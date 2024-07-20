@@ -6,6 +6,9 @@
     console.log("in layout:", supabase);
     console.log("in layout:", session);
 
+    // Authenticating endpoints
+    import { page } from "$app/stores";
+
     // Generic styles & shell
     import "../app.postcss";
     import { AppShell, AppBar } from "@skeletonlabs/skeleton";
@@ -97,100 +100,104 @@
 </script>
 
 <!-- App Shell -->
-<Drawer>
-    {#if $drawerStore.id === "messages"}
-        <MessageFeed />
-    {:else if $drawerStore.id === "profile"}
-        <UserProfile />
-    {/if}
-</Drawer>
-<Modal />
-<Toast />
-<AppShell>
-    <svelte:fragment slot="header">
-        <!-- App Bar -->
-        <AppBar class="max-h-[8vh]">
-            <svelte:fragment slot="lead">
-                <strong class="text-xl uppercase"
-                    >Community<i class="fa-solid fa-bolt"></i>Power</strong
-                >
-            </svelte:fragment>
-            <svelte:fragment slot="trail">
-                <button
-                    class="btn variant-ghost-surface"
-                    on:click={openProfile}
-                >
-                    <i class="fa-solid fa-user"></i>
-                </button>
-                <button
-                    class="btn variant-ghost-surface"
-                    on:click={openNotifications}
-                >
-                    <i class="fa-solid fa-bell"></i>
-                </button>
-            </svelte:fragment>
-        </AppBar>
-    </svelte:fragment>
-    <div class="w-full p-4" style="height: 83vh;">
-        <slot />
-    </div>
-    <svelte:fragment slot="footer">
-        <AppBar class="bg-ghost-100-800-token p-0 space-y-0 max-h-[10vh]">
-            <svelte:fragment slot="lead"></svelte:fragment>
-            <svelte:fragment slot="headline">
-                <div
-                    class="w-full flex items-center justify-center text-center"
-                >
-                    <div class="flex justify-center max-w-[400px]"></div>
-                    <div class="flex justify-center">
-                        <button
-                            class="btn btn-m variant-filled-primary rounded-full mx-3"
-                            on:click={() => {
-                                window.location.href = "/about";
-                            }}
-                        >
-                            <i class="fa-solid fa-info"></i>
-                        </button>
-                        <button
-                            class="btn btn-m variant-filled-primary rounded-full mx-3"
-                            on:click={() => {
-                                window.location.href = "/";
-                            }}
-                        >
-                            <i class="fa-solid fa-house"></i>
-                        </button>
+{#if $page.url.pathname === "/login"}
+    <slot />
+{:else}
+    <Drawer>
+        {#if $drawerStore.id === "messages"}
+            <MessageFeed />
+        {:else if $drawerStore.id === "profile"}
+            <UserProfile {data}/>
+        {/if}
+    </Drawer>
+    <Modal />
+    <Toast />
+    <AppShell>
+        <svelte:fragment slot="header">
+            <!-- App Bar -->
+            <AppBar class="max-h-[8vh]">
+                <svelte:fragment slot="lead">
+                    <strong class="text-xl uppercase"
+                        >Community<i class="fa-solid fa-bolt"></i>Power</strong
+                    >
+                </svelte:fragment>
+                <svelte:fragment slot="trail">
+                    <button
+                        class="btn variant-ghost-surface"
+                        on:click={openProfile}
+                    >
+                        <i class="fa-solid fa-user"></i>
+                    </button>
+                    <button
+                        class="btn variant-ghost-surface"
+                        on:click={openNotifications}
+                    >
+                        <i class="fa-solid fa-bell"></i>
+                    </button>
+                </svelte:fragment>
+            </AppBar>
+        </svelte:fragment>
+        <div class="w-full p-4" style="height: 83vh;">
+            <slot />
+        </div>
+        <svelte:fragment slot="footer">
+            <AppBar class="bg-ghost-100-800-token p-0 space-y-0 max-h-[10vh]">
+                <svelte:fragment slot="lead"></svelte:fragment>
+                <svelte:fragment slot="headline">
+                    <div
+                        class="w-full flex items-center justify-center text-center"
+                    >
+                        <div class="flex justify-center max-w-[400px]"></div>
+                        <div class="flex justify-center">
+                            <button
+                                class="btn btn-m variant-filled-primary rounded-full mx-3"
+                                on:click={() => {
+                                    window.location.href = "/about";
+                                }}
+                            >
+                                <i class="fa-solid fa-info"></i>
+                            </button>
+                            <button
+                                class="btn btn-m variant-filled-primary rounded-full mx-3"
+                                on:click={() => {
+                                    window.location.href = "/";
+                                }}
+                            >
+                                <i class="fa-solid fa-house"></i>
+                            </button>
+                        </div>
+                        <div class="flex justify-center">
+                            <button
+                                class="btn btn-xl variant-filled-primary rounded-full mx-3"
+                                on:click={() => {
+                                    triggerModal(listingModal);
+                                }}
+                            >
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="flex justify-center">
+                            <button
+                                class="btn btn-m variant-filled-primary rounded-full mx-3"
+                                on:click={() => {
+                                    window.location.href = "/calendar";
+                                }}
+                            >
+                                <i class="fa-solid fa-calendar"></i>
+                            </button>
+                            <button
+                                class="btn btn-m variant-filled-primary rounded-full mx-3"
+                                on:click={() => {
+                                    window.location.href = "/search";
+                                }}
+                            >
+                                <i class="fa-solid fa-search"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex justify-center">
-                        <button
-                            class="btn btn-xl variant-filled-primary rounded-full mx-3"
-                            on:click={() => {
-                                triggerModal(listingModal);
-                            }}
-                        >
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                    </div>
-                    <div class="flex justify-center">
-                        <button
-                            class="btn btn-m variant-filled-primary rounded-full mx-3"
-                            on:click={() => {
-                                window.location.href = "/calendar";
-                            }}
-                        >
-                            <i class="fa-solid fa-calendar"></i>
-                        </button>
-                        <button
-                            class="btn btn-m variant-filled-primary rounded-full mx-3"
-                            on:click={() => {
-                                window.location.href = "/search";
-                            }}
-                        >
-                            <i class="fa-solid fa-search"></i>
-                        </button>
-                    </div>
-                </div>
-            </svelte:fragment>
-            <svelte:fragment slot="trail"></svelte:fragment>
-        </AppBar>
-    </svelte:fragment>
-</AppShell>
+                </svelte:fragment>
+                <svelte:fragment slot="trail"></svelte:fragment>
+            </AppBar>
+        </svelte:fragment>
+    </AppShell>
+{/if}
