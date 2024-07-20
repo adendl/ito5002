@@ -1,4 +1,12 @@
 <script>
+    // Supabase
+    export let data;
+    let { supabase, session } = data;
+    $: ({ supabase, session } = data);
+    console.log("in layout:", supabase);
+    console.log("in layout:", session);
+
+    // Generic styles & shell
     import "../app.postcss";
     import { AppShell, AppBar } from "@skeletonlabs/skeleton";
     import MessageFeed from "$lib/MessageFeed.svelte";

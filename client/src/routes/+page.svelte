@@ -2,6 +2,7 @@
     import { dummyListingCards } from "../lib/dummyData/listingCards.js";
     import ListingCard from "$lib/ListingCard.svelte";
     import dummyMap from "$lib/dummyData/dummyMap.png";
+
 </script>
 
 <div class="grid grid-cols-2 gap-4 h-full relative">
