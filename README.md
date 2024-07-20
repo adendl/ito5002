@@ -9,8 +9,6 @@ Community Power is a team project for the Monash University ITO5002 course in 20
 - [Running Locally](#running-locally)
 - [Building and Deploying with Docker](#building-and-deploying-with-docker)
 - [CI/CD with Google Cloud](#cicd-with-google-cloud)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Features
 
@@ -29,13 +27,14 @@ To set up the project locally, follow these steps:
    cd community-power
 2. **Install dependencies**:
 npm install
-Running Locally
+
+## Running Locally
 To run the application locally, you can use the development server provided by Vite:
 
 npm run dev
 Open your browser and navigate to http://localhost:3000 to see the application in action.
 
-3. **Building and Deploying with Docker**
+## Building and Deploying with Docker
 To build and deploy the application using Docker, follow these steps:
 
 Build the Docker image:
@@ -48,7 +47,7 @@ docker run -p 4173:4173 sveltejs-app
 Access the application:
 Open your browser and navigate to http://localhost:3000 to see the application running inside the Docker container.
 
-4. **CI/CD with Google Cloud**
+## CI/CD with Google Cloud
 We use Google Cloud Build and Google Cloud Run for continuous integration and continuous deployment (CI/CD). Here's a high-level overview of how our CI/CD pipeline works:
 
 Source Code Management:
