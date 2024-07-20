@@ -44,8 +44,9 @@ docker build -t sveltejs-app .
 Run the Docker container:
 
 docker run -p 4173:4173 sveltejs-app
+
 Access the application:
-Open your browser and navigate to http://localhost:3000 to see the application running inside the Docker container.
+Open your browser and navigate to http://localhost:4173 to see the application running inside the Docker container.
 
 ## CI/CD with Google Cloud
 We use Google Cloud Build and Google Cloud Run for continuous integration and continuous deployment (CI/CD). Here's a high-level overview of how our CI/CD pipeline works:
