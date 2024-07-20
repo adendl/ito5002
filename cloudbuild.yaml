@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA', './client']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA']
+
+images:
+  - 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
