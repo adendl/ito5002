@@ -8,6 +8,18 @@
 
     // Authenticating endpoints
     import { page } from "$app/stores";
+    import { onMount } from "svelte";
+    onMount(() => {
+        if ($page.url.pathname === "/login") {
+            return;
+        } else if (session == null) {
+            window.location.href = "/login";
+        } else {
+            if (session.user.role != "authenticated") {
+                window.location.href = "/login";
+            }
+        }
+    });
 
     // Generic styles & shell
     import "../app.postcss";
@@ -107,7 +119,7 @@
         {#if $drawerStore.id === "messages"}
             <MessageFeed />
         {:else if $drawerStore.id === "profile"}
-            <UserProfile {data}/>
+            <UserProfile {data} />
         {/if}
     </Drawer>
     <Modal />

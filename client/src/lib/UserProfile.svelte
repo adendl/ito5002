@@ -2,13 +2,9 @@
     export let data;
     let { supabase, session } = data;
     $: ({ supabase, session } = data);
-    console.log(supabase);
-    console.log(session);
 
-    function signOut() {
-        console.log("signOut");
-        supabase.auth.signOut();
-        console.log("signOut end");
+    async function signOut() {
+        const { error } = await supabase.auth.signOut("global");
         window.location.href = "/login";
     }
 
