@@ -16,11 +16,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Install a simple HTTP server to serve the static files
-RUN npm install -g serve
-
 # Expose the port the app runs on
-EXPOSE 5000
+EXPOSE 4173
 
 # Command to run the application
-CMD ["serve", "-s", "build"]
+CMD ["npm", "run", "preview"]
