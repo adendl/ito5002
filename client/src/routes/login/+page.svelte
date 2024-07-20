@@ -47,7 +47,8 @@
             </div>
             <div class="m-2">
                 <button class="btn variant-filled" on:click={googleLogin}
-                    >Sign in with Google</button
+                    >Sign in with Google <i class="ml-2 fa-brands fa-google"
+                    ></i></button
                 >
             </div>
         </div>

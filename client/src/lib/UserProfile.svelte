@@ -8,7 +8,7 @@
         window.location.href = "/login";
     }
 
-    let displayName = "Jamie Smith";
+    let displayName = session.user.user_metadata.full_name;
     let rating = 4.5;
     let contactNumber = "0412345678";
     let address = "122 Grays St, Marrickville";
