@@ -1,5 +1,14 @@
 <script>
-    let displayName = "Jamie Smith";
+    export let data;
+    let { supabase, session } = data;
+    $: ({ supabase, session } = data);
+
+    async function signOut() {
+        const { error } = await supabase.auth.signOut("global");
+        window.location.href = "/login";
+    }
+
+    let displayName = session.user.user_metadata.full_name;
     let rating = 4.5;
     let contactNumber = "0412345678";
     let address = "122 Grays St, Marrickville";
@@ -61,6 +70,9 @@
         />
     </label>
     <div class="flex items-center justify-center">
-        <button class="btn variant-filled-primary mt-4">Save</button>
+        <button class="btn variant-filled-primary my-4">Save</button>
+    </div>
+    <div class="flex items-center justify-center">
+        <button class="btn variant-filled" on:click={signOut}>Sign out</button>
     </div>
 </div>
