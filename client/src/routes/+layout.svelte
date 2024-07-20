@@ -71,7 +71,7 @@
     initializeStores();
     const modalStore = getModalStore();
     const drawerStore = getDrawerStore();
-    import AddListingModal from "$lib/ViewListing.svelte";
+    import AddListingModal from "$lib/AddListingModal.svelte";
     import UserProfile from "$lib/UserProfile.svelte";
     const listingModalRef = { ref: AddListingModal };
     const listingModal = {
