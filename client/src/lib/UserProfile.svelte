@@ -3,6 +3,7 @@
 
     import { onMount } from "svelte";
     import { getToastStore } from "@skeletonlabs/skeleton";
+    import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
 
     let { supabase, session } = data;
     $: ({ supabase, session } = data);
@@ -14,31 +15,43 @@
 
     let displayName = session.user.user_metadata.full_name;
     let contactNumber = "";
-    let address = "";
+    let homeAddress = "";
+    let homeAddressPoint = "";
     let workAddress = "";
+    let workAddressPoint = "";
     let rating = null;
+    let loaded = false;
 
     onMount(async () => {
+        await getUser();
+        loaded = true;
+    });
+
+    async function getUser() {
         const { data: user, error } = await supabase
             .from("users")
-            .select("phone_number, home_address, work_address")
+            .select("phone_number, home_address, home_address_point, work_address, work_address_point")
             .eq("user_id", session.user.id)
             .single();
         if (error) console.error("error", error);
         if (user) {
             contactNumber = user.phone_number;
-            address = user.home_address;
+            homeAddress = user.home_address;
+            homeAddressPoint = user.home_address_point;
             workAddress = user.work_address;
+            workAddressPoint = user.work_address_point;
         }
-    });
+    }
 
     async function updateUser() {
         const { data: user, error } = await supabase.from("users").upsert([
             {
                 user_id: session.user.id,
                 phone_number: contactNumber,
-                home_address: address,
+                home_address: homeAddress,
+                home_address_point: homeAddressPoint,
                 work_address: workAddress,
+                work_address_point: workAddressPoint,
             },
         ]);
         if (error) {
@@ -100,21 +113,21 @@
         />
     </label>
     <label class="label m-2">
-        <span>Address</span>
-        <input
-            class="input"
-            type="text"
-            placeholder="Input home address"
-            bind:value={address}
+        <span>Home address</span>
+        <GeocodeSearchbar
+            bind:addressString={homeAddress}
+            bind:addressPoint={homeAddressPoint}
+            query={homeAddress}
+            n={1}
         />
     </label>
     <label class="label m-2">
         <span>Work address</span>
-        <input
-            class="input"
-            type="text"
-            placeholder="Input work address"
-            bind:value={workAddress}
+        <GeocodeSearchbar
+            bind:addressString={workAddress}
+            bind:addressPoint={workAddressPoint}
+            query={workAddress}
+            n={2}
         />
     </label>
     <div class="flex items-center justify-center">
