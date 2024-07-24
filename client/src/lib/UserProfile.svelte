@@ -30,7 +30,9 @@
     async function getUser() {
         const { data: user, error } = await supabase
             .from("users")
-            .select("phone_number, home_address, home_address_point, work_address, work_address_point")
+            .select(
+                "phone_number, home_address, home_address_point, work_address, work_address_point",
+            )
             .eq("user_id", session.user.id)
             .single();
         if (error) console.error("error", error);

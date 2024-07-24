@@ -1,101 +1,167 @@
-<script>
-    import { TabGroup, Tab, TabAnchor } from "@skeletonlabs/skeleton";
-    import WeekTable from "$lib/WeekTable.svelte";
-    let tabSet = 0;
+<script lang="ts">
+    import WeekTableBooking from "$lib/WeekTableBooking.svelte";
+    import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
+    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
+    const modalStore = getModalStore();
+    const toastStore = getToastStore();
+    let data = $modalStore[0].meta.data;
+    let { supabase, session } = data;
+    $: ({ supabase, session } = data);
+
+    let selectedDate = new Date().toISOString().split("T")[0];
+    let listingAddressString = "";
+    let listingAddressPoint;
+    let pricePerHour: number;
+    let chargingMode: string;
+    let chargerType: string;
+    let sustainable: boolean = false;
+    let listings = [];
+
+    async function publishListing() {
+        if (
+            isNaN(pricePerHour) ||
+            !listingAddressString ||
+            !listingAddressPoint ||
+            !chargingMode ||
+            !chargerType ||
+            !listings.length
+        ) {
+            toastStore.trigger({
+                message: "Invalid input - check fields",
+                background: "variant-filled-warning",
+            });
+            return;
+        }
+        let formattedListings = [];
+        for (const listing of listings) {
+            const { startTime, endTime } = listing;
+            formattedListings.push({
+                user_id: session.user.id,
+                address: listingAddressString,
+                address_point: listingAddressPoint,
+                price_per_hour: pricePerHour,
+                charging_mode: chargingMode,
+                charger_type: chargerType,
+                sustainable,
+                start_time: startTime,
+                end_time: endTime,
+            });
+        }
+        try {
+            console.log(formattedListings);
+            const { data, error } = await supabase
+                .from("listings")
+                .upsert(formattedListings, {
+                    onConflict: ["user_id", "address", "start_time"],
+                });
+            if (error) {
+                console.error("error", error);
+                toastStore.trigger({
+                    message: "Error publishing listing(s)",
+                    background: "variant-filled-warning",
+                });
+                return;
+            }
+            toastStore.trigger({
+                message: "Listing published successfully",
+                background: "variant-filled-success",
+            });
+            modalStore.close();
+        } catch (error) {
+            console.error("error", error);
+            toastStore.trigger({
+                message: "Error publishing listing",
+                background: "variant-filled-warning",
+            });
+        }
+    }
 </script>
 
-<div class="card m-4 p-4 w-1/2">
+<div class="card m-4 p-4 w-3/5">
     <div class="w-full items-center text-center">
-        <h2 class="h4 mb-2">Add charging availability</h2>
+        <h2 class="h4 mb-2">List charging availability</h2>
     </div>
-    <label class="label my-2">
-        <span>Address</span>
-        <input class="input" type="text" placeholder="Enter address..." />
-    </label>
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-2 gap-2">
+        <div>
+            <label class="label mt-2">
+                <span>Address</span>
+                <GeocodeSearchbar
+                    bind:addressString={listingAddressString}
+                    bind:addressPoint={listingAddressPoint}
+                    n={1}
+                />
+            </label>
+        </div>
+        <div>
+            <label class="label mt-2"
+                ><span>Price per hour</span>
+                <div
+                    class="input-group input-group-divider grid-cols-[auto_1fr_auto]"
+                >
+                    <div class="input-group-shim">
+                        <i class="fa-solid fa-dollar-sign"></i>
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Amount"
+                        bind:value={pricePerHour}
+                    />
+                    <select disabled>
+                        <option>AUD</option>
+                    </select>
+                </div>
+            </label>
+        </div>
         <div>
             <label class="label">
                 <span>Charging mode</span>
-                <select class="select">
-                    <option value="1">Mode 1</option>
-                    <option value="2">Mode 2</option>
-                    <option value="3">Mode 3</option>
-                    <option value="4">Mode 4</option>
+                <select class="select" bind:value={chargingMode}>
+                    <option value="Mode 1">Mode 1</option>
+                    <option value="Mode 2">Mode 2</option>
+                    <option value="Mode 3">Mode 3</option>
+                    <option value="Mode 4">Mode 4</option>
                 </select>
             </label>
         </div>
         <div>
             <label class="label">
                 <span>Charger type</span>
-                <select class="select">
-                    <option value="1">Mennekes</option>
-                    <option value="2">Type 1</option>
-                    <option value="3">CHaDeMO</option>
-                    <option value="4">CCS</option>
-                    <option value="5">CCS2</option>
-                    <option value="6">Tesla</option>
-                    <option value="7">GB/T</option>
+                <select class="select" bind:value={chargerType}>
+                    <option value="Mennekes">Mennekes</option>
+                    <option value="Type 1">Type 1</option>
+                    <option value="CHaDeMO">CHaDeMO</option>
+                    <option value="CCS">CCS</option>
+                    <option value="CCS2">CCS2</option>
+                    <option value="Tesla">Tesla</option>
+                    <option value="GB/T">GB/T</option>
                 </select>
             </label>
         </div>
-        <div>
-            <label class="label">Price per hour</label>
-            <div
-                class="input-group input-group-divider grid-cols-[auto_1fr_auto]"
-            >
-                <div class="input-group-shim">
-                    <i class="fa-solid fa-dollar-sign"></i>
-                </div>
-                <input type="text" placeholder="Amount" />
-                <select disabled>
-                    <option>AUD</option>
-                </select>
-            </div>
-        </div>
-        <div>
-            <label class="ml-2 mt-8 flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" />
+        <div class="mt-1 flex justify-center items-center text-center">
+            <label class="flex items-center space-x-2">
+                <input
+                    class="checkbox"
+                    type="checkbox"
+                    bind:value={sustainable}
+                />
                 <p>Sustainably generated</p>
             </label>
         </div>
+        <div class="mt-1 flex justify-center items-center text-center">
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" disabled />
+                <p class="text-gray-400">Recur for 3 months</p>
+            </label>
+        </div>
     </div>
-    <TabGroup class="mt-2">
-        <Tab bind:group={tabSet} name="tab1" value={0}>
-            <svelte:fragment slot="lead"></svelte:fragment>
-            <span>One-off</span>
-        </Tab>
-        <Tab bind:group={tabSet} name="tab2" value={1}>Recurring</Tab>
-        <svelte:fragment slot="panel">
-            {#if tabSet === 0}
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label">
-                            <span>Window start</span>
-                            <input
-                                class="input"
-                                type="datetime-local"
-                                placeholder=""
-                            />
-                        </label>
-                    </div>
-                    <div>
-                        <label class="label">
-                            <span>Window end</span>
-                            <input
-                                class="input"
-                                type="datetime-local"
-                                placeholder=""
-                            />
-                        </label>
-                    </div>
-                </div>
-            {:else if tabSet === 1}
-                <WeekTable />
-            {/if}
-        </svelte:fragment>
-    </TabGroup>
+    <div class="mt-4">
+        <WeekTableBooking bind:targetDate={selectedDate} bind:listings />
+    </div>
     <div class="w-full flex justify-center m-auto">
-        <button class="btn mt-4 mb-0 variant-filled-primary rounded-full">
+        <button
+            class="btn mt-2 mb-0 variant-filled-primary rounded-full"
+            on:click={publishListing}
+        >
             Publish
         </button>
     </div>
