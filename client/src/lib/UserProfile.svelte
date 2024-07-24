@@ -31,29 +31,76 @@
         const { data: user, error } = await supabase
             .from("users")
             .select(
-                "phone_number, home_address, home_address_point, work_address, work_address_point",
+                `
+            phone_number,
+            home_place:home_place_id (
+                address,
+                point
+            ),
+            work_place:work_place_id (
+                address,
+                point
+            )
+        `,
             )
             .eq("user_id", session.user.id)
             .single();
-        if (error) console.error("error", error);
+
+        if (error) {
+            console.error("error", error);
+            return;
+        }
+        console.log(user);
         if (user) {
             contactNumber = user.phone_number;
-            homeAddress = user.home_address;
-            homeAddressPoint = user.home_address_point;
-            workAddress = user.work_address;
-            workAddressPoint = user.work_address_point;
+            homeAddress = user.home_place ? user.home_place.address : null;
+            homeAddressPoint = user.home_place ? user.home_place.point : null;
+            workAddress = user.work_place ? user.work_place.address : null;
+            workAddressPoint = user.work_place ? user.work_place.point : null;
         }
     }
 
     async function updateUser() {
+        // create places or retrieve ids
+        let places = [];
+        if (homeAddress) {
+            places.push({
+                address: homeAddress,
+                point: homeAddressPoint,
+            });
+        }
+        if (workAddress) {
+            places.push({
+                address: workAddress,
+                point: workAddressPoint,
+            });
+        }
+        const { data: placeData, error: placeError } = await supabase
+            .from("places")
+            .upsert(places, {
+                onConflict: ["address", "point"],
+            })
+            .select("*");
+
+        if (placeError) {
+            console.error("error", placeError);
+            toastStore.trigger(errorToast);
+            return;
+        }
+
+        const homePlaceId = placeData.find(
+            (place) => place.address === homeAddress,
+        )?.id;
+        const workPlaceId = placeData.find(
+            (place) => place.address === workAddress,
+        )?.id;
+
         const { data: user, error } = await supabase.from("users").upsert([
             {
                 user_id: session.user.id,
                 phone_number: contactNumber,
-                home_address: homeAddress,
-                home_address_point: homeAddressPoint,
-                work_address: workAddress,
-                work_address_point: workAddressPoint,
+                home_place_id: homePlaceId,
+                work_place_id: workPlaceId,
             },
         ]);
         if (error) {

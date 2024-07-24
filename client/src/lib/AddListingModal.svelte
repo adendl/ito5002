@@ -33,12 +33,30 @@
             return;
         }
         let formattedListings = [];
+
+        // create place or retrieve id
+        const { data: placeData, error: placeError } = await supabase
+            .from("places")
+            .upsert(
+                [
+                    {
+                        address: listingAddressString,
+                        point: listingAddressPoint,
+                    },
+                ],
+                {
+                    onConflict: ["address", "point"],
+                },
+            )
+            .select("*");
+        const placeId = placeData[0].id;
+
+        // format and insert listings
         for (const listing of listings) {
             const { startTime, endTime } = listing;
             formattedListings.push({
                 user_id: session.user.id,
-                address: listingAddressString,
-                address_point: listingAddressPoint,
+                place_id: placeId,
                 price_per_hour: pricePerHour,
                 charging_mode: chargingMode,
                 charger_type: chargerType,
@@ -52,7 +70,7 @@
             const { data, error } = await supabase
                 .from("listings")
                 .upsert(formattedListings, {
-                    onConflict: ["user_id", "address", "start_time"],
+                    onConflict: ["user_id", "place_id", "start_time"],
                 });
             if (error) {
                 console.error("error", error);
