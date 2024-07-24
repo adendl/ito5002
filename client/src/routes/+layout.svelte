@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     // Supabase
     export let data;
     let { supabase, session } = data;
@@ -9,17 +9,24 @@
     // Authenticating endpoints
     import { page } from "$app/stores";
     import { onMount } from "svelte";
+    let loaded = false;
     onMount(() => {
         if ($page.url.pathname === "/login") {
             return;
-        } else if (session == null) {
+        } else if (session == null || (session.user.role = !"authenticated")) {
             window.location.href = "/login";
         } else {
-            if (session.user.role != "authenticated") {
-                window.location.href = "/login";
-            }
+            loaded = true;
         }
     });
+
+    // Loading spinner
+    import { ConicGradient } from "@skeletonlabs/skeleton";
+    import type { ConicStop } from "@skeletonlabs/skeleton";
+    const conicStops: ConicStop[] = [
+        { color: "transparent", start: 0, end: 25 },
+        { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
+    ];
 
     // Generic styles & shell
     import "../app.postcss";
@@ -114,6 +121,10 @@
 <!-- App Shell -->
 {#if $page.url.pathname === "/login"}
     <slot />
+{:else if !loaded}
+    <div class="w-full h-full flex justify-center items-center text-center">
+        <ConicGradient stops={conicStops} spin>Loading</ConicGradient>
+    </div>
 {:else}
     <Drawer>
         {#if $drawerStore.id === "messages"}
