@@ -50,7 +50,7 @@
             console.error("error", error);
             return;
         }
-
+        console.log(user);
         if (user) {
             contactNumber = user.phone_number;
             homeAddress = user.home_place ? user.home_place.address : null;
@@ -62,19 +62,25 @@
 
     async function updateUser() {
         // create places or retrieve ids
+        let places = [];
+        if (homeAddress) {
+            places.push({
+                address: homeAddress,
+                point: homeAddressPoint,
+            });
+        }
+        if (workAddress) {
+            places.push({
+                address: workAddress,
+                point: workAddressPoint,
+            });
+        }
         const { data: placeData, error: placeError } = await supabase
             .from("places")
-            .upsert([
-                {
-                    address: homeAddress,
-                    point: homeAddressPoint,
-                },
-                {
-                    address: workAddress,
-                    point: workAddressPoint,
-                },
-            ])
-            .select("id");
+            .upsert(places, {
+                onConflict: ["address", "point"],
+            })
+            .select("*");
 
         if (placeError) {
             console.error("error", placeError);
@@ -82,8 +88,12 @@
             return;
         }
 
-        const homePlaceId = placeData[0].id;
-        const workPlaceId = placeData[1].id;
+        const homePlaceId = placeData.find(
+            (place) => place.address === homeAddress,
+        )?.id;
+        const workPlaceId = placeData.find(
+            (place) => place.address === workAddress,
+        )?.id;
 
         const { data: user, error } = await supabase.from("users").upsert([
             {
