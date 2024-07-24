@@ -24,9 +24,6 @@
     let rating = null;
     let loaded = false;
 
-    $: console.log(homeAddressSuburb)
-    $: console.log(workAddressSuburb)
-    
     onMount(async () => {
         await getUser();
         loaded = true;
