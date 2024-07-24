@@ -35,6 +35,7 @@
             .select(
                 `
             phone_number,
+            name,
             home_place:home_place_id (
                 address,
                 point,
@@ -57,6 +58,7 @@
         console.log(user);
         if (user) {
             contactNumber = user.phone_number;
+            displayName = user.name;
             homeAddress = user.home_place ? user.home_place.address : null;
             homeAddressPoint = user.home_place ? user.home_place.point : null;
             homeAddressSuburb = user.home_place ? user.home_place.suburb : null;
@@ -106,6 +108,7 @@
         const { data: user, error } = await supabase.from("users").upsert([
             {
                 user_id: session.user.id,
+                name: displayName,
                 phone_number: contactNumber,
                 home_place_id: homePlaceId,
                 work_place_id: workPlaceId,
