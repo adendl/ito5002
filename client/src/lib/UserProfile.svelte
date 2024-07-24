@@ -17,11 +17,16 @@
     let contactNumber = "";
     let homeAddress = "";
     let homeAddressPoint = "";
+    let homeAddressSuburb = "";
     let workAddress = "";
     let workAddressPoint = "";
+    let workAddressSuburb = "";
     let rating = null;
     let loaded = false;
 
+    $: console.log(homeAddressSuburb)
+    $: console.log(workAddressSuburb)
+    
     onMount(async () => {
         await getUser();
         loaded = true;
@@ -35,11 +40,13 @@
             phone_number,
             home_place:home_place_id (
                 address,
-                point
+                point,
+                suburb
             ),
             work_place:work_place_id (
                 address,
-                point
+                point,
+                suburb
             )
         `,
             )
@@ -55,8 +62,10 @@
             contactNumber = user.phone_number;
             homeAddress = user.home_place ? user.home_place.address : null;
             homeAddressPoint = user.home_place ? user.home_place.point : null;
+            homeAddressSuburb = user.home_place ? user.home_place.suburb : null;
             workAddress = user.work_place ? user.work_place.address : null;
             workAddressPoint = user.work_place ? user.work_place.point : null;
+            workAddressSuburb = user.work_place ? user.work_place.suburb : null;
         }
     }
 
@@ -67,12 +76,14 @@
             places.push({
                 address: homeAddress,
                 point: homeAddressPoint,
+                suburb: homeAddressSuburb,
             });
         }
         if (workAddress) {
             places.push({
                 address: workAddress,
                 point: workAddressPoint,
+                suburb: workAddressSuburb,
             });
         }
         const { data: placeData, error: placeError } = await supabase
@@ -166,6 +177,7 @@
         <GeocodeSearchbar
             bind:addressString={homeAddress}
             bind:addressPoint={homeAddressPoint}
+            bind:addressSuburb={homeAddressSuburb}
             query={homeAddress}
             n={1}
         />
@@ -175,6 +187,7 @@
         <GeocodeSearchbar
             bind:addressString={workAddress}
             bind:addressPoint={workAddressPoint}
+            bind:addressSuburb={workAddressSuburb}
             query={workAddress}
             n={2}
         />
