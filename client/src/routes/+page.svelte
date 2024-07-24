@@ -1,8 +1,13 @@
 <script>
-    import { dummyListingCards } from "../lib/dummyData/listingCards.js";
-    import ListingCard from "$lib/ListingCard.svelte";
-    import dummyMap from "$lib/dummyData/dummyMap.png";
+    export let data;
+    let { supabase, session } = data;
+    $: ({ supabase, session } = data);
 
+    import { onMount } from "svelte";
+    import ListingCard from "$lib/ListingCard.svelte";
+
+    import { dummyListingCards } from "../lib/dummyData/listingCards.js";
+    import dummyMap from "$lib/dummyData/dummyMap.png";
 </script>
 
 <div class="grid grid-cols-2 gap-4 h-full relative">

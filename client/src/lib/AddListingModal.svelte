@@ -11,6 +11,7 @@
     let selectedDate = new Date().toISOString().split("T")[0];
     let listingAddressString = "";
     let listingAddressPoint;
+    let listingAddressSuburb;
     let pricePerHour: number;
     let chargingMode: string;
     let chargerType: string;
@@ -42,6 +43,7 @@
                     {
                         address: listingAddressString,
                         point: listingAddressPoint,
+                        suburb: listingAddressSuburb,
                     },
                 ],
                 {
@@ -106,6 +108,7 @@
                 <GeocodeSearchbar
                     bind:addressString={listingAddressString}
                     bind:addressPoint={listingAddressPoint}
+                    bind:addressSuburb={listingAddressSuburb}
                     n={1}
                 />
             </label>

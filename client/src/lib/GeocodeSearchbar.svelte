@@ -2,6 +2,7 @@
     export let query: string = "";
     export let addressString: string = "";
     export let addressPoint: string = "";
+    export let addressSuburb: string = "";
     export let n: number;
 
     // Key restricted to requests from the prod service so can be public
@@ -40,6 +41,9 @@
             addressPoint = `POINT(${selectedLocationObject.features[0].geometry.coordinates[0]} ${selectedLocationObject.features[0].geometry.coordinates[1]})`;
             addressString =
                 selectedLocationObject.features[0].properties.full_address;
+            addressSuburb =
+                selectedLocationObject.features[0].properties.context.locality
+                    .name;
             query = addressString;
             selectedLocationObjectExists = true;
         } catch (error) {
