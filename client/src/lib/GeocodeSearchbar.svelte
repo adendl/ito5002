@@ -4,6 +4,10 @@
     export let addressPoint: string = "";
     export let n: number;
 
+    // Key restricted to requests from the prod service so can be public
+    const mapBoxKey =
+        "pk.eyJ1Ijoib2otc2VjIiwiYSI6ImNseXpjY3dyaTBvZDUya29uZDd6aGdnbjgifQ.P37-v7FO0PAZ8eKtaluTsw";
+
     import { Autocomplete, popup, getToastStore } from "@skeletonlabs/skeleton";
     import type {
         PopupSettings,
@@ -12,13 +16,11 @@
 
     let queryActive: boolean = false;
     let selectedLocationObject = {};
-    $: if (selectedLocationObject) {
-        addressString = selectedLocationObject.display_name;
-        addressPoint = `POINT(${selectedLocationObject.lon} ${selectedLocationObject.lat})`;
-    }
+
     let selectedLocationObjectExists: boolean = false;
     $: selectedLocationObjectExists =
-        Object.keys(selectedLocationObject).length > 0 || addressPoint !== "POINT(undefined undefined)";
+        Object.keys(selectedLocationObject).length > 0 ||
+        addressPoint !== "POINT(undefined undefined)";
 
     let popupSettings: PopupSettings = {
         event: "focus-click",
@@ -29,33 +31,55 @@
 
     var locationOptions: AutocompleteOption<string>[] = [];
 
-    function onSelect(event: CustomEvent<AutocompleteOption<string>>) {
-        query = event.detail.value;
-        selectedLocationObject = event.detail.data;
-        selectedLocationObject = selectedLocationObject;
+    async function onSelect(event: CustomEvent<AutocompleteOption<string>>) {
+        const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${event.detail.data.mapbox_id}?access_token=${mapBoxKey}&session_token=communitypower`;
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    "User-Agent": "CommunityPower",
+                },
+            });
+            selectedLocationObject = await response.json();
+            console.log(selectedLocationObject);
+            addressPoint = `POINT(${selectedLocationObject.features[0].geometry.coordinates[0]} ${selectedLocationObject.features[0].geometry.coordinates[1]})`;
+            addressString =
+                selectedLocationObject.features[0].properties.full_address;
+            query = addressString;
+        } catch (error) {
+            console.error("Error:", error);
+            toastStore.trigger({
+                message: "Error retrieving address",
+                background: "variant-filled-error",
+            });
+        }
     }
 
     async function geocodeSearch() {
         queryActive = true;
         // TOS compliance, delaying requests by users
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&layer=address&format=json`;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${query}&access_token=${mapBoxKey}&session_token=communitypower`;
         try {
             const response = await fetch(url, {
                 headers: {
-                    "User-Agent": "CommunityPower", // TOS requires a user agent
+                    "User-Agent": "CommunityPower",
                 },
             });
-            const candidates = await response.json();
-            if (candidates.length === 0) {
-                toastStore.trigger(errorToast);
+            const reponseJSON = await response.json();
+            console.log(reponseJSON);
+            const candidates = reponseJSON.suggestions;
+            if (candidates === 0) {
+                toastStore.trigger({
+                    message: "No results for address",
+                    background: "variant-filled-warning",
+                });
                 queryActive = false;
                 return;
             }
             locationOptions = candidates.map((candidate) => {
                 return {
-                    value: candidate.display_name.replace(",", ""),
-                    label: candidate.display_name.replace(",", ""),
+                    value: candidate.full_address.replace(",", ""),
+                    label: candidate.full_address.replace(",", ""),
                     keywords: query,
                     data: candidate,
                 };
@@ -65,6 +89,10 @@
             popupWindow.click();
         } catch (error) {
             console.error("Error:", error);
+            toastStore.trigger({
+                message: "Error searching address",
+                background: "variant-filled-error",
+            });
         }
         queryActive = false;
     }
@@ -76,12 +104,9 @@
     }
 
     const toastStore = getToastStore();
-    const errorToast = {
-        message: "No results for address",
-        background: "variant-filled-warning",
-    };
-
-    $:console.log(selectedLocationObjectExists);
+    $: console.log(selectedLocationObjectExists);
+    $: console.log(addressPoint);
+    $: console.log(addressString);
 </script>
 
 <div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
