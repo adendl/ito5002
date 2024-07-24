@@ -18,9 +18,6 @@
     let selectedLocationObject = {};
 
     let selectedLocationObjectExists: boolean = false;
-    $: selectedLocationObjectExists =
-        Object.keys(selectedLocationObject).length > 0 ||
-        addressPoint !== "POINT(undefined undefined)";
 
     let popupSettings: PopupSettings = {
         event: "focus-click",
@@ -40,11 +37,11 @@
                 },
             });
             selectedLocationObject = await response.json();
-            console.log(selectedLocationObject);
             addressPoint = `POINT(${selectedLocationObject.features[0].geometry.coordinates[0]} ${selectedLocationObject.features[0].geometry.coordinates[1]})`;
             addressString =
                 selectedLocationObject.features[0].properties.full_address;
             query = addressString;
+            selectedLocationObjectExists = true;
         } catch (error) {
             console.error("Error:", error);
             toastStore.trigger({
@@ -66,7 +63,6 @@
                 },
             });
             const reponseJSON = await response.json();
-            console.log(reponseJSON);
             const candidates = reponseJSON.suggestions;
             if (candidates === 0) {
                 toastStore.trigger({
@@ -84,7 +80,6 @@
                     data: candidate,
                 };
             });
-            console.log(locationOptions);
             locationOptions = locationOptions;
             popupWindow.click();
         } catch (error) {
@@ -104,9 +99,6 @@
     }
 
     const toastStore = getToastStore();
-    $: console.log(selectedLocationObjectExists);
-    $: console.log(addressPoint);
-    $: console.log(addressString);
 </script>
 
 <div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">

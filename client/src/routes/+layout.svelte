@@ -81,9 +81,10 @@
     import AddListingModal from "$lib/AddListingModal.svelte";
     import UserProfile from "$lib/UserProfile.svelte";
     const listingModalRef = { ref: AddListingModal };
-    const listingModal = {
+    $: listingModal = {
         type: "component",
         component: listingModalRef,
+        meta: { data },
     };
 
     function triggerModal(modalId) {
@@ -134,7 +135,7 @@
         {/if}
     </Drawer>
     <Modal />
-    <Toast />
+    <Toast zIndex="z-[1000]" />
     <AppShell>
         <svelte:fragment slot="header">
             <!-- App Bar -->
