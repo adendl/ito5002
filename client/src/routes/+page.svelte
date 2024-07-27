@@ -67,7 +67,7 @@
                 </div>
             </span>
             {#each listings as listingCard}
-                <ListingCard {...listingCard} />
+                <ListingCard {...listingCard} {data}/>
             {:else}
                 <div class="flex justify-center items-center h-[90%]">
                     <h4 class="h4">No listings found</h4>

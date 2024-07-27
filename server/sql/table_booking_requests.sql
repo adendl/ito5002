@@ -5,5 +5,5 @@ CREATE TABLE booking_requests (
     availability_id UUID NOT NULL REFERENCES availabilities(availability_id),
     booking_user_id UUID NOT NULL REFERENCES users(user_id),
     status VARCHAR(20) NOT NULL DEFAULT 'submitted',
-    CONSTRAINT unique_booking_request UNIQUE (availability_id, booking_user_id)
+    CONSTRAINT unique_booking_user_availability UNIQUE (availability_id, booking_user_id)
 );
