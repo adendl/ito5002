@@ -9,9 +9,8 @@
     export let charging_mode;
     export let charger_type;
     export let sustainable;
-    export let start_time;
-    export let end_time;
     export let distance;
+    export let data;
 
     import { getModalStore } from "@skeletonlabs/skeleton";
 
@@ -33,9 +32,8 @@
             charging_mode,
             charger_type,
             sustainable,
-            start_time,
-            end_time,
             distance,
+            data,
         },
     };
 
