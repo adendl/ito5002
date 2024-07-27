@@ -1,11 +1,17 @@
 <script>
-    export let displayName;
+    export let listing_id;
+    export let user_id;
+    export let user_name;
     export let rating;
+    export let place_id;
     export let suburb;
-    export let mode;
-    export let type;
-    export let pricePerHour;
+    export let price_per_hour;
+    export let charging_mode;
+    export let charger_type;
     export let sustainable;
+    export let start_time;
+    export let end_time;
+    export let distance;
 
     import { getModalStore } from "@skeletonlabs/skeleton";
 
@@ -17,13 +23,19 @@
         type: "component",
         component: bookModalRef,
         meta: {
-            displayName,
+            listing_id,
+            user_id,
+            user_name,
             rating,
+            place_id,
             suburb,
-            mode,
-            type,
-            pricePerHour,
+            price_per_hour,
+            charging_mode,
+            charger_type,
             sustainable,
+            start_time,
+            end_time,
+            distance,
         },
     };
 
@@ -53,11 +65,15 @@
         </div>
         <div class="flex w-11/12 flex-col">
             <h4 class="h4 mb-3">
-                {suburb}: Mode {mode} - {type} @ ${pricePerHour} per hour
+                {suburb}: {charging_mode} - {charger_type} @ ${price_per_hour}
+                per hour
             </h4>
             <p>
-                {displayName} <i class="fa-solid fa-star"></i>
-                {rating}
+                {user_name}
+                {#if rating}
+                    <i class="fa-solid fa-star"></i>
+                    {rating}
+                {/if}
             </p>
         </div>
     </div>
