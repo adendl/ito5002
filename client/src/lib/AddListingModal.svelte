@@ -1,5 +1,5 @@
 <script lang="ts">
-    import WeekTableBooking from "$lib/WeekTableBooking.svelte";
+    import WeekTableListing from "$lib/WeekTableListing.svelte";
     import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
     import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     const modalStore = getModalStore();
@@ -16,7 +16,7 @@
     let chargingMode: string;
     let chargerType: string;
     let sustainable: boolean = false;
-    let listings = [];
+    let availabilities = [];
 
     async function publishListing() {
         if (
@@ -25,7 +25,7 @@
             !listingAddressPoint ||
             !chargingMode ||
             !chargerType ||
-            !listings.length
+            !availabilities.length
         ) {
             toastStore.trigger({
                 message: "Invalid input - check fields",
@@ -33,7 +33,7 @@
             });
             return;
         }
-        let formattedListings = [];
+        let formattedAvailabilities = [];
 
         // create place or retrieve id
         const { data: placeData, error: placeError } = await supabase
@@ -51,33 +51,56 @@
                 },
             )
             .select("*");
-        const placeId = placeData[0].id;
+        const placeId = placeData[0].place_id;
 
-        // format and insert listings
-        for (const listing of listings) {
-            const { startTime, endTime } = listing;
-            formattedListings.push({
-                user_id: session.user.id,
-                place_id: placeId,
-                price_per_hour: pricePerHour,
-                charging_mode: chargingMode,
-                charger_type: chargerType,
-                sustainable,
+        // create listing or retrieve id
+        const { data: listingData, error: listingError } = await supabase
+            .from("listings")
+            .upsert(
+                [
+                    {
+                        user_id: session.user.id,
+                        place_id: placeId,
+                        price_per_hour: pricePerHour,
+                        charging_mode: chargingMode,
+                        charger_type: chargerType,
+                        sustainable,
+                    },
+                ],
+                {
+                    onConflict: [
+                        "user_id",
+                        "place_id",
+                        "price_per_hour",
+                        "charging_mode",
+                        "charger_type",
+                        "sustainable",
+                    ],
+                },
+            )
+            .select("*");
+        const listingId = listingData[0].listing_id;
+
+        // format and insert availabilities
+        for (const availability of availabilities) {
+            const { startTime, endTime } = availability;
+            formattedAvailabilities.push({
+                listing_id: listingId,
                 start_time: startTime,
                 end_time: endTime,
             });
         }
         try {
-            console.log(formattedListings);
+            console.log(formattedAvailabilities);
             const { data, error } = await supabase
-                .from("listings")
-                .upsert(formattedListings, {
-                    onConflict: ["user_id", "place_id", "start_time"],
+                .from("availabilities")
+                .upsert(formattedAvailabilities, {
+                    onConflict: ["listing_id", "start_time"],
                 });
             if (error) {
                 console.error("error", error);
                 toastStore.trigger({
-                    message: "Error publishing listing(s)",
+                    message: "Error creating listing",
                     background: "variant-filled-warning",
                 });
                 return;
@@ -163,7 +186,7 @@
                 <input
                     class="checkbox"
                     type="checkbox"
-                    bind:value={sustainable}
+                    bind:checked={sustainable}
                 />
                 <p>Sustainably generated</p>
             </label>
@@ -176,7 +199,7 @@
         </div>
     </div>
     <div class="mt-4">
-        <WeekTableBooking bind:targetDate={selectedDate} bind:listings />
+        <WeekTableListing bind:targetDate={selectedDate} bind:availabilities />
     </div>
     <div class="w-full flex justify-center m-auto">
         <button
