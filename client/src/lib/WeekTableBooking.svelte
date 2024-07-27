@@ -1,6 +1,6 @@
 <script>
     export let targetDate;
-    export let listings = [];
+    export let availabilities = [];
 
     // Cycle calendar display dates and populate table
     let displayDates = [];
@@ -21,7 +21,7 @@
         selections = Array.from({ length: 7 }).map(() =>
             Array.from({ length: 6 }).map(() => false),
         );
-        listings = [];
+        availabilities = [];
     }
     const days = [
         "Sunday",
@@ -50,8 +50,8 @@
     }
 
     // Convert selections into listing objects to export
-    function convertSelectionsToListings() {
-        listings = [];
+    function convertSelectionsToAvailabilities() {
+        availabilities = [];
         for (let i = 0; i < 7; i++) {
             for (let j = 0; j < 6; j++) {
                 if (selections[i][j]) {
@@ -74,7 +74,7 @@
 
                     let formattedStartTime = `${selectedYear}-${monthNumericPadded}-${date}T${timeStart}:00:00+10`;
                     let formattedEndTime = `${selectedYear}-${monthNumericPadded}-${date}T${timeEnd}:00:00+10`;
-                    listings.push({
+                    availabilities.push({
                         startTime: formattedStartTime,
                         endTime: formattedEndTime,
                     });
@@ -83,7 +83,7 @@
         }
     }
 
-    $: selections, convertSelectionsToListings();
+    $: selections, convertSelectionsToAvailabilities();
 </script>
 
 <div class="card p-4">
