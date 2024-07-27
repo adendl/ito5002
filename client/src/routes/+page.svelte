@@ -17,13 +17,19 @@
     let listings = [];
 
     onMount(async () => {
-        const { data, error } = await supabase.rpc(
-            "closest_listings_in_next_month",
-            {
-                input_user_id: session.user.id,
-                limit_count: 100,
-            },
-        );
+        // Get user's home or default to central Sydney
+        const { data: user, error: userError } = await supabase
+            .from("users")
+            .select(`home_place:home_place_id (point)`)
+            .eq("user_id", session.user.id)
+            .single();
+        
+        const homePlacePoint = user?.home_place?.point || "0101000020E610000041BCAE5FB0E66240C87C40A033EF40C0";
+
+        const { data, error } = await supabase.rpc("get_listings_near", {
+            query_location: homePlacePoint,
+            limit_count: 100,
+        });
         if (error) {
             console.error("error", error);
             toastStore.trigger({
