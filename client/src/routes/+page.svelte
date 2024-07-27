@@ -31,6 +31,8 @@
         }
         console.log("Listings:");
         console.log(data);
+        listings = data;
+        listings = listings;
         loaded = true;
     });
 
@@ -55,7 +57,7 @@
                     >
                 </div>
             </span>
-            {#each dummyListingCards as listingCard}
+            {#each listings as listingCard}
                 <ListingCard {...listingCard} />
             {/each}
         </div>
