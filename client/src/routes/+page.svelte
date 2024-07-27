@@ -17,10 +17,13 @@
     let listings = [];
 
     onMount(async () => {
-        const { data, error } = await supabase.rpc("closest_listings_in_next_month", {
-            input_user_id: session.user.id,
-            limit_count: 100,
-        });
+        const { data, error } = await supabase.rpc(
+            "closest_listings_in_next_month",
+            {
+                input_user_id: session.user.id,
+                limit_count: 100,
+            },
+        );
         if (error) {
             console.error("error", error);
             toastStore.trigger({
@@ -59,6 +62,10 @@
             </span>
             {#each listings as listingCard}
                 <ListingCard {...listingCard} />
+            {:else}
+                <div class="flex justify-center items-center h-[90%]">
+                    <h4 class="h4">No listings found</h4>
+                </div>
             {/each}
         </div>
         <div class="card p-4 h-full w-full relative overflow-auto">
