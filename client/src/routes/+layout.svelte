@@ -154,6 +154,7 @@
                     </button>
                     <button
                         class="btn variant-ghost-surface"
+                        disabled
                         on:click={openNotifications}
                     >
                         <i class="fa-solid fa-bell"></i>
