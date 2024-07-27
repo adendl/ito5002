@@ -68,7 +68,14 @@
                     },
                 ],
                 {
-                    onConflict: ["user_id", "place_id", "price_per_hour", "charging_mode", "charger_type", "sustainable"],
+                    onConflict: [
+                        "user_id",
+                        "place_id",
+                        "price_per_hour",
+                        "charging_mode",
+                        "charger_type",
+                        "sustainable",
+                    ],
                 },
             )
             .select("*");
@@ -179,7 +186,7 @@
                 <input
                     class="checkbox"
                     type="checkbox"
-                    bind:value={sustainable}
+                    bind:checked={sustainable}
                 />
                 <p>Sustainably generated</p>
             </label>
