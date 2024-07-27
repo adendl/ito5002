@@ -1,5 +1,5 @@
 <script lang="ts">
-    import WeekTableBooking from "$lib/WeekTableBooking.svelte";
+    import WeekTableListing from "$lib/WeekTableListing.svelte";
     import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
     import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     const modalStore = getModalStore();
@@ -199,7 +199,7 @@
         </div>
     </div>
     <div class="mt-4">
-        <WeekTableBooking bind:targetDate={selectedDate} bind:availabilities />
+        <WeekTableListing bind:targetDate={selectedDate} bind:availabilities />
     </div>
     <div class="w-full flex justify-center m-auto">
         <button
