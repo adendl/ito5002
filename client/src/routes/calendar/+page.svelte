@@ -16,10 +16,11 @@
         { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
     ];
 
-    // Modals
-    import { getModalStore } from "@skeletonlabs/skeleton";
+    // Modals & toasts
+    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     import ManageListingModal from "$lib/ManageListingModal.svelte";
     const modalStore = getModalStore();
+    const toastStore = getToastStore();
     const manageListingModalRef = { ref: ManageListingModal };
     var manageListingModal = {
         type: "component",
@@ -29,15 +30,7 @@
         },
     };
 
-    // Handle URL param for reloads
-    import { page } from "$app/stores";
-    const dateString = $page.url.searchParams.get("date");
-    let selectedDate;
-    if (dateString) {
-        selectedDate = dateString;
-    } else {
-        selectedDate = new Date().toISOString().split("T")[0];
-    }
+    let selectedDate = new Date().toISOString().split("T")[0];
     let tabSet = 0; // 0 is listing mode, 1 is booking mode
     let startDate;
     let endDate;
@@ -118,6 +111,17 @@
         let availabilities = data;
         console.log("availabilities:");
         console.log(availabilities);
+
+        // Filter rejected requests
+        availabilities.forEach((object) => {
+            object.booking_requests = object.booking_requests.filter(
+                (request) => request.status !== "rejected",
+            );
+        });
+
+        console.log("availabilities after filtering:");
+        console.log(availabilities);
+
         // zip the availabilities into the calendarData
         if (availabilities.length > 0) {
             availabilities.forEach((object) => {
@@ -213,8 +217,6 @@
                 }
             });
         });
-        console.log("requestBlocks:");
-        console.log(requestBlocks);
     }
 
     function getContiguousBookings() {
@@ -253,8 +255,6 @@
                 }
             });
         });
-        console.log("bookingBlocks:");
-        console.log(bookingBlocks);
     }
 
     async function acceptRequest(booking_user_id, booking_request_id) {
@@ -266,18 +266,17 @@
                 allAvailabilityIds = block.availabilityIds;
             }
         });
-        console.log("About to update requests and create bookings");
         const { data: updatedRequests, error: updateError } = await supabase
             .from("booking_requests")
             .update({ status: "accepted" })
             .in("booking_request_id", allRequestIds);
         if (updateError) {
-            console.error("Error updating booking requests:", updateError);
+            toastStore.trigger({
+                message: "Error creating booking",
+                background: "variant-filled-error",
+            });
             return;
-        } else {
-            console.log("Requests updated:", updatedRequests);
         }
-        // Create new booking rows
         const bookingsData = allAvailabilityIds.map((availability_id) => ({
             availability_id,
             booking_user_id,
@@ -286,18 +285,45 @@
             .from("bookings")
             .insert(bookingsData);
         if (insertError) {
-            console.error("Error creating bookings:", insertError);
+            toastStore.trigger({
+                message: "Error creating booking",
+                background: "variant-filled-error",
+            });
             return;
         }
-        console.log(
-            "Booking requests accepted and bookings created:",
-            newBookings,
-        );
+        toastStore.trigger({
+            message: "Booking created",
+            background: "variant-filled-success",
+        });
         refreshData();
     }
 
-    async function rejectRequest() {
-        console.log("Reject request");
+    async function rejectRequest(booking_user_id, booking_request_id) {
+        var allRequestIds = [];
+        var allAvailabilityIds = [];
+        console.log(requestBlocks);
+        requestBlocks[booking_user_id].forEach((block) => {
+            if (block.requestIds.includes(booking_request_id)) {
+                allRequestIds = block.requestIds;
+                allAvailabilityIds = block.availabilityIds;
+            }
+        });
+        const { data: updatedRequests, error: updateError } = await supabase
+            .from("booking_requests")
+            .update({ status: "rejected" })
+            .in("booking_request_id", allRequestIds);
+        if (updateError) {
+            toastStore.trigger({
+                message: "Error rejecting request",
+                background: "variant-filled-error",
+            });
+            return;
+        }
+        toastStore.trigger({
+            message: "Request rejected",
+            background: "variant-filled-success",
+        });
+        refreshData();
     }
 
     // Booking mode
@@ -318,53 +344,6 @@
     }
 
     $: console.log(focusListing);
-
-    async function testGetContact() {
-        const {data: myOwn, error: ownError} = await supabase
-            .from("contacts")
-            .select("*")
-            .eq("user_id", session.user.id)
-            .single();
-
-        if (ownError) {
-            console.error("Canto select own contacts", ownError);
-            return;
-        } else{
-            console.log("Can select own user with id", session.user.id);
-        }
-
-        const id = "26419cf6-ac63-47c0-8977-bc1d9c762db5";
-        const { data: contact, error } = await supabase
-            .from("contacts")
-            .select("*")
-            .eq("user_id", id)
-            .single();
-        if (error) {
-            console.error("error", error);
-            console.log("cant select coparty", id);
-            return;
-        }
-        console.log("contact");
-        console.log(contact);
-
-
-        const id2 = "8c1289b5-f8ab-4c45-a579-c96bc41a25b6";
-        const { data: contact2, error2 } = await supabase
-            .from("contacts")
-            .select("*")
-            .eq("user_id", id2)
-            .single();
-        if (error2) {
-            console.error("error", error);
-            console.log("cant select coparty", id2);
-            return;
-        }
-        console.log("contact");
-        console.log(contact2);
-    }
-
-    testGetContact();
-
 </script>
 
 {#if loaded}
@@ -520,7 +499,11 @@
                                                 <button
                                                     type="button"
                                                     class="btn btn-sm variant-filled-error m-1"
-                                                    on:click={rejectRequest}
+                                                    on:click={() =>
+                                                        rejectRequest(
+                                                            request.booking_user_id,
+                                                            request.booking_request_id,
+                                                        )}
                                                 >
                                                     Reject
                                                 </button>
@@ -557,7 +540,14 @@
                                                     focusListing.bookings
                                                         .booking_user_id
                                                 ][i].end,
-                                            )}. Get in touch on
+                                            )}.
+                                            {#if focusListing.bookings.users.contacts.phone_number || focusListing.bookings.users.contacts.email_address}
+                                                Get in touch on {focusListing
+                                                    .bookings.users.contacts
+                                                    .phone_number} or {focusListing
+                                                    .bookings.users.contacts
+                                                    .email_address}
+                                            {/if}
                                         </div>
                                         <div class="flex flex-col items-end">
                                             <button
