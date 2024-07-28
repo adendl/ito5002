@@ -104,7 +104,7 @@
         *,
         listings!inner(*, places!inner(*)),
         booking_requests(*, users!inner(*)),
-        bookings(*, users!inner(*))
+        bookings(*, users!inner(*, contacts(*)))
     `,
             )
             .eq("listings.user_id", session.user.id)
@@ -293,6 +293,7 @@
             "Booking requests accepted and bookings created:",
             newBookings,
         );
+        refreshData();
     }
 
     async function rejectRequest() {
@@ -317,6 +318,53 @@
     }
 
     $: console.log(focusListing);
+
+    async function testGetContact() {
+        const {data: myOwn, error: ownError} = await supabase
+            .from("contacts")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single();
+
+        if (ownError) {
+            console.error("Canto select own contacts", ownError);
+            return;
+        } else{
+            console.log("Can select own user with id", session.user.id);
+        }
+
+        const id = "26419cf6-ac63-47c0-8977-bc1d9c762db5";
+        const { data: contact, error } = await supabase
+            .from("contacts")
+            .select("*")
+            .eq("user_id", id)
+            .single();
+        if (error) {
+            console.error("error", error);
+            console.log("cant select coparty", id);
+            return;
+        }
+        console.log("contact");
+        console.log(contact);
+
+
+        const id2 = "8c1289b5-f8ab-4c45-a579-c96bc41a25b6";
+        const { data: contact2, error2 } = await supabase
+            .from("contacts")
+            .select("*")
+            .eq("user_id", id2)
+            .single();
+        if (error2) {
+            console.error("error", error);
+            console.log("cant select coparty", id2);
+            return;
+        }
+        console.log("contact");
+        console.log(contact2);
+    }
+
+    testGetContact();
+
 </script>
 
 {#if loaded}
@@ -509,13 +557,12 @@
                                                     focusListing.bookings
                                                         .booking_user_id
                                                 ][i].end,
-                                            )}. Get in touch to make
-                                            arrangements!
+                                            )}. Get in touch on
                                         </div>
                                         <div class="flex flex-col items-end">
                                             <button
                                                 type="button"
-                                                class="btn btn-sm variant-filled-success m-1"
+                                                class="btn btn-sm variant-filled-success m-1 invisible"
                                             >
                                                 Show <i
                                                     class="ml-1 fa-solid fa-phone"
