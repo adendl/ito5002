@@ -141,7 +141,11 @@
             <!-- App Bar -->
             <AppBar class="max-h-[8vh]">
                 <svelte:fragment slot="lead">
-                    <strong class="text-xl uppercase"
+                    <strong
+                        class="text-xl uppercase"
+                        on:click={() => {
+                            window.location.href = "/";
+                        }}
                         >Community<i class="fa-solid fa-bolt"></i>Power</strong
                     >
                 </svelte:fragment>
@@ -154,6 +158,7 @@
                     </button>
                     <button
                         class="btn variant-ghost-surface"
+                        disabled
                         on:click={openNotifications}
                     >
                         <i class="fa-solid fa-bell"></i>

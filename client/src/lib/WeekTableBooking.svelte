@@ -34,12 +34,12 @@
         "Saturday",
     ];
     const hourBrackets = [
-        { start: 0, end: 4 },
-        { start: 4, end: 8 },
-        { start: 8, end: 12 },
-        { start: 12, end: 4 },
-        { start: 4, end: 8 },
-        { start: 8, end: 12 },
+        { start: 0, end: 4, actualStart: 0, actualEnd: 4 },
+        { start: 4, end: 8, actualStart: 4, actualEnd: 8 },
+        { start: 8, end: 12, actualStart: 8, actualEnd: 12 },
+        { start: 12, end: 4, actualStart: 12, actualEnd: 16 },
+        { start: 4, end: 8, actualStart: 16, actualEnd: 20 },
+        { start: 8, end: 12, actualStart: 20, actualEnd: 24 },
     ];
 
     let selections = Array.from({ length: 7 }).map(() =>
@@ -59,12 +59,8 @@
                     const selectedYear = new Date(targetDate).getFullYear(); // 2024
                     const month = displayDates[i].split(" ")[1]; // Jul
                     const date = displayDates[i].split(" ")[0]; // 21
-                    let timeStart = hourBrackets[j].start; // 12
-                    let timeEnd = hourBrackets[j].end; // 16
-                    if (j >= 4) {
-                        timeStart += 12;
-                        timeEnd += 12;
-                    }
+                    let timeStart = hourBrackets[j].actualStart; // 12
+                    let timeEnd = hourBrackets[j].actualEnd; // 16
                     timeStart = timeStart.toString().padStart(2, "0");
                     timeEnd = timeEnd.toString().padStart(2, "0");
                     const monthNumeric =
