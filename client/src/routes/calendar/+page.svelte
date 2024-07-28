@@ -5,17 +5,40 @@
 
     import { TabGroup, Tab } from "@skeletonlabs/skeleton";
     import WeekTable from "$lib/WeekTable.svelte";
+    import WeekTableCalendarListings from "$lib/WeekTableCalendarListings.svelte";
+
+    // Loader
     import { ConicGradient } from "@skeletonlabs/skeleton";
     import type { ConicStop } from "@skeletonlabs/skeleton";
-    import WeekTableCalendarListings from "$lib/WeekTableCalendarListings.svelte";
     let loaded = false;
     const conicStops: ConicStop[] = [
         { color: "transparent", start: 0, end: 25 },
         { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
     ];
 
+    // Modals
+    import { getModalStore } from "@skeletonlabs/skeleton";
+    import ManageListingModal from "$lib/ManageListingModal.svelte";
+    const modalStore = getModalStore();
+    const manageListingModalRef = { ref: ManageListingModal };
+    var manageListingModal = {
+        type: "component",
+        component: manageListingModalRef,
+        meta: {
+            data,
+        },
+    };
+
+    // Handle URL param for reloads
+    import { page } from "$app/stores";
+    const dateString = $page.url.searchParams.get("date");
+    let selectedDate;
+    if (dateString) {
+        selectedDate = dateString;
+    } else {
+        selectedDate = new Date().toISOString().split("T")[0];
+    }
     let tabSet = 0; // 0 is listing mode, 1 is booking mode
-    let selectedDate = new Date().toISOString().split("T")[0];
     let startDate;
     let endDate;
     let calendarData;
@@ -24,6 +47,17 @@
     let focusListing = null;
     let focusListingIndex = null;
     let requestBlocks = {};
+    let bookingBlocks = {};
+
+    // Overall refresh functions
+    $: selectedDate, refreshData();
+    function refreshData() {
+        if (tabSet === 0) {
+            getListingModeData();
+        } else if (tabSet === 1) {
+            getBookingModeData();
+        }
+    }
 
     $: {
         if (
@@ -49,18 +83,7 @@
         endDate = dateWindow[6].toISOString().split("T")[0] + "T23:59:59+10";
     }
 
-    // Overall refresh function
-    $: selectedDate, refreshData();
-    function refreshData() {
-        if (tabSet === 0) {
-            getListingModeData();
-        } else if (tabSet === 1) {
-            getBookingModeData();
-        }
-    }
-
-    // Get all availabilities for this user in the window
-    // Get all requests and bookings assoicated with these availabilities
+    // Listing mode functionality
     async function getListingModeData() {
         loaded = false;
         focusElement = null;
@@ -81,7 +104,7 @@
         *,
         listings!inner(*, places!inner(*)),
         booking_requests(*, users!inner(*)),
-        bookings(*)
+        bookings(*, users!inner(*))
     `,
             )
             .eq("listings.user_id", session.user.id)
@@ -103,7 +126,7 @@
                 let hour = date.getHours();
                 calendarData[day][hour / 4].objects.push(object);
                 calendarData[day][hour / 4].objects.some((element) =>
-                    element.booked
+                    element.bookings
                         ? ((calendarData[day][hour / 4].state = "booked"),
                           (element.state = "booked"))
                         : element.booking_requests.length > 0
@@ -117,21 +140,32 @@
         } else {
             noData = true;
         }
-        console.log("calendarData end:");
-        console.log(calendarData);
         getContiguousRequests();
-        console.log("requestBlocks:");
-        console.log(requestBlocks);
+        getContiguousBookings();
         loaded = true;
     }
 
-    function handleCardClick() {
-        console.log("Card clicked");
-    }
-
-    function manageListing(event) {
+    function manageListing(event, listing) {
         event.stopPropagation();
-        console.log("Button clicked");
+        console.log(listing);
+
+        new Promise<boolean>((resolve) => {
+            const manageListingModal = {
+                type: "component",
+                component: manageListingModalRef,
+                meta: {
+                    data,
+                    listing_id: listing.listing_id,
+                },
+                response: (r: boolean) => {
+                    resolve(r);
+                },
+            };
+            modalStore.trigger(manageListingModal);
+        }).then((r: any) => {
+            //window.location.href = "/calendar?date=" + selectedDate;
+            refreshData();
+        });
     }
 
     // Get blocks of contiguous requests by a single user
@@ -149,7 +183,8 @@
                                 const userId = request.booking_user_id;
                                 const startTime = object.start_time;
                                 const endTime = object.end_time;
-
+                                const requestId = request.booking_request_id;
+                                const availabilityId = object.availability_id;
                                 if (!requestBlocks[userId]) {
                                     requestBlocks[userId] = [];
                                 }
@@ -160,10 +195,16 @@
 
                                 if (lastBlock && lastBlock.end === startTime) {
                                     lastBlock.end = endTime;
+                                    lastBlock.requestIds.push(requestId);
+                                    lastBlock.availabilityIds.push(
+                                        availabilityId,
+                                    );
                                 } else {
                                     userBlocks.push({
                                         start: startTime,
                                         end: endTime,
+                                        requestIds: [requestId],
+                                        availabilityIds: [availabilityId],
                                     });
                                 }
                             });
@@ -172,8 +213,98 @@
                 }
             });
         });
+        console.log("requestBlocks:");
+        console.log(requestBlocks);
     }
 
+    function getContiguousBookings() {
+        bookingBlocks = {};
+        calendarData.forEach((day) => {
+            day.forEach((segment) => {
+                if (segment.state === "booked") {
+                    segment.objects.forEach((object) => {
+                        if (object.bookings) {
+                            const userId = object.bookings.booking_user_id;
+                            const startTime = object.start_time;
+                            const endTime = object.end_time;
+                            const bookingId = object.booking_id;
+                            const availabilityId = object.availability_id;
+                            if (!bookingBlocks[userId]) {
+                                bookingBlocks[userId] = [];
+                            }
+
+                            const userBlocks = bookingBlocks[userId];
+                            const lastBlock = userBlocks[userBlocks.length - 1];
+
+                            if (lastBlock && lastBlock.end === startTime) {
+                                lastBlock.end = endTime;
+                                lastBlock.bookingIds.push(bookingId);
+                                lastBlock.availabilityIds.push(availabilityId);
+                            } else {
+                                userBlocks.push({
+                                    start: startTime,
+                                    end: endTime,
+                                    bookingIds: [bookingId],
+                                    availabilityIds: [availabilityId],
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        });
+        console.log("bookingBlocks:");
+        console.log(bookingBlocks);
+    }
+
+    async function acceptRequest(booking_user_id, booking_request_id) {
+        var allRequestIds = [];
+        var allAvailabilityIds = [];
+        requestBlocks[booking_user_id].forEach((block) => {
+            if (block.requestIds.includes(booking_request_id)) {
+                allRequestIds = block.requestIds;
+                allAvailabilityIds = block.availabilityIds;
+            }
+        });
+        console.log("About to update requests and create bookings");
+        const { data: updatedRequests, error: updateError } = await supabase
+            .from("booking_requests")
+            .update({ status: "accepted" })
+            .in("booking_request_id", allRequestIds);
+        if (updateError) {
+            console.error("Error updating booking requests:", updateError);
+            return;
+        } else {
+            console.log("Requests updated:", updatedRequests);
+        }
+        // Create new booking rows
+        const bookingsData = allAvailabilityIds.map((availability_id) => ({
+            availability_id,
+            booking_user_id,
+        }));
+        const { data: newBookings, error: insertError } = await supabase
+            .from("bookings")
+            .insert(bookingsData);
+        if (insertError) {
+            console.error("Error creating bookings:", insertError);
+            return;
+        }
+        console.log(
+            "Booking requests accepted and bookings created:",
+            newBookings,
+        );
+    }
+
+    async function rejectRequest() {
+        console.log("Reject request");
+    }
+
+    // Booking mode
+    async function getBookingModeData() {
+        getStartEndDate();
+    }
+
+    // Utility functions
     function isWithinWindow(startTime, endTime, checkTime) {
         const start = new Date(startTime).getTime();
         const end = new Date(endTime).getTime();
@@ -183,11 +314,6 @@
 
     function prettifyDate(date) {
         return new Date(date).toLocaleString();
-    }
-
-    // Booking mode
-    async function getBookingModeData() {
-        getStartEndDate();
     }
 
     $: console.log(focusListing);
@@ -281,7 +407,8 @@
                                     <button
                                         type="button"
                                         class="btn btn-sm variant-filled m-1"
-                                        on:click={manageListing}
+                                        on:click={(event) =>
+                                            manageListing(event, listing)}
                                     >
                                         Manage
                                     </button>
@@ -334,14 +461,18 @@
                                                 <button
                                                     type="button"
                                                     class="btn btn-sm variant-filled-success m-1"
-                                                    on:click={manageListing}
+                                                    on:click={() =>
+                                                        acceptRequest(
+                                                            request.booking_user_id,
+                                                            request.booking_request_id,
+                                                        )}
                                                 >
                                                     Accept
                                                 </button>
                                                 <button
                                                     type="button"
                                                     class="btn btn-sm variant-filled-error m-1"
-                                                    on:click={manageListing}
+                                                    on:click={rejectRequest}
                                                 >
                                                     Reject
                                                 </button>
@@ -351,6 +482,57 @@
                                 {/each}
                             </div>
                         {/each}
+                    </div>
+                {:else if focusListing.state === "booked"}
+                    <div
+                        class="p-4 overflow-y-scroll h-[23vh] overflow-y-scroll"
+                    >
+                        <h3 class="ml-4">Booking for this listing</h3>
+                        <div
+                            class="card p-4 m-2 break-normal variant-ghost-secondary"
+                        >
+                            {#each Array.from( { length: bookingBlocks[focusListing.bookings.booking_user_id].length }, ) as _, i}
+                                {#if isWithinWindow(bookingBlocks[focusListing.bookings.booking_user_id][i].start, bookingBlocks[focusListing.bookings.booking_user_id][i].end, focusListing.start_time)}
+                                    <div class="grid grid-cols-4 gap-2">
+                                        <div
+                                            class="col-span-3 flex justify-center items-center"
+                                        >
+                                            {focusListing.bookings.users
+                                                .user_name} has booked this listing
+                                            from {prettifyDate(
+                                                bookingBlocks[
+                                                    focusListing.bookings
+                                                        .booking_user_id
+                                                ][i].start,
+                                            )} to {prettifyDate(
+                                                bookingBlocks[
+                                                    focusListing.bookings
+                                                        .booking_user_id
+                                                ][i].end,
+                                            )}. Get in touch to make
+                                            arrangements!
+                                        </div>
+                                        <div class="flex flex-col items-end">
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm variant-filled-success m-1"
+                                            >
+                                                Show <i
+                                                    class="ml-1 fa-solid fa-phone"
+                                                ></i>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm variant-filled-error m-1"
+                                                on:click={rejectRequest}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                {/if}
+                            {/each}
+                        </div>
                     </div>
                 {/if}
             </div>
