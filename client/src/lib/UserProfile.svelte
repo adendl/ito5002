@@ -14,6 +14,7 @@
     }
 
     let displayName = session.user.user_metadata.full_name;
+    let email = session.user.email;
     let contactNumber = "";
     let homeAddress = "";
     let homeAddressPoint = "";
@@ -34,7 +35,6 @@
             .from("users")
             .select(
                 `
-            phone_number,
             user_name,
             home_place:home_place_id (
                 address,
@@ -45,6 +45,10 @@
                 address,
                 point,
                 suburb
+            ),
+            contacts (
+                phone_number,
+                email_address
             )
         `,
             )
@@ -57,7 +61,12 @@
         }
         console.log(user);
         if (user) {
-            contactNumber = user.phone_number;
+            contactNumber = user.contacts.phone_number
+                ? user.contacts.phone_number
+                : null;
+            email = user.contacts.email_address
+                ? user.contacts.email_address
+                : null;
             displayName = user.user_name;
             homeAddress = user.home_place ? user.home_place.address : null;
             homeAddressPoint = user.home_place ? user.home_place.point : null;
@@ -69,56 +78,83 @@
     }
 
     async function updateUser() {
-        // create places or retrieve ids
-        let places = [];
-        if (homeAddress) {
-            places.push({
-                address: homeAddress,
-                point: homeAddressPoint,
-                suburb: homeAddressSuburb,
-            });
-        }
-        if (workAddress) {
-            places.push({
-                address: workAddress,
-                point: workAddressPoint,
-                suburb: workAddressSuburb,
-            });
-        }
-        const { data: placeData, error: placeError } = await supabase
-            .from("places")
-            .upsert(places, {
-                onConflict: ["address", "point"],
-            })
-            .select("*");
-        if (placeError) {
-            console.error("error", placeError);
-            toastStore.trigger(errorToast);
-            return;
-        }
+        try {
+            // Create places or retrieve ids
+            let places = [];
+            if (homeAddress) {
+                places.push({
+                    address: homeAddress,
+                    point: homeAddressPoint,
+                    suburb: homeAddressSuburb,
+                });
+            }
+            if (workAddress) {
+                places.push({
+                    address: workAddress,
+                    point: workAddressPoint,
+                    suburb: workAddressSuburb,
+                });
+            }
+            const { data: placeData, error: placeError } = await supabase
+                .from("places")
+                .upsert(places, {
+                    onConflict: ["address", "point"],
+                })
+                .select("*");
 
-        const homePlaceId = placeData.find(
-            (place) => place.address === homeAddress,
-        )?.place_id;
-        const workPlaceId = placeData.find(
-            (place) => place.address === workAddress,
-        )?.place_id;
+            if (placeError) {
+                console.error("error", placeError);
+                toastStore.trigger(errorToast);
+                return;
+            }
 
-        const { data: user, error } = await supabase.from("users").upsert([
-            {
-                user_id: session.user.id,
-                user_name: displayName,
-                phone_number: contactNumber,
-                home_place_id: homePlaceId,
-                work_place_id: workPlaceId,
-            },
-        ]);
-        if (error) {
+            const homePlaceId = placeData.find(
+                (place) => place.address === homeAddress,
+            )?.place_id;
+            const workPlaceId = placeData.find(
+                (place) => place.address === workAddress,
+            )?.place_id;
+            const { data: user, error: userError } = await supabase
+                .from("users")
+                .upsert([
+                    {
+                        user_id: session.user.id,
+                        user_name: displayName,
+                        home_place_id: homePlaceId,
+                        work_place_id: workPlaceId,
+                    },
+                ]);
+
+            if (userError) {
+                console.error("error", userError);
+                toastStore.trigger(errorToast);
+                return;
+            }
+            const { data: contact, error: contactError } = await supabase
+                .from("contacts")
+                .upsert(
+                    [
+                        {
+                            user_id: session.user.id,
+                            phone_number: contactNumber,
+                            email_address: session.user.email,
+                        },
+                    ],
+                    {
+                        onConflict: ["user_id"],
+                    },
+                );
+
+            if (contactError) {
+                console.error("error", contactError);
+                toastStore.trigger(errorToast);
+                return;
+            }
+
+            toastStore.trigger(successToast);
+        } catch (error) {
             console.error("error", error);
             toastStore.trigger(errorToast);
-            return;
-        } else {
-            toastStore.trigger(successToast);
         }
     }
 
@@ -160,6 +196,16 @@
             type="text"
             placeholder="Input"
             bind:value={displayName}
+        />
+    </label>
+    <label class="label m-2">
+        <span>Name</span>
+        <input
+            disabled
+            class="input"
+            type="text"
+            placeholder="Input"
+            bind:value={email}
         />
     </label>
     <label class="label m-2">
