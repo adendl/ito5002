@@ -123,7 +123,10 @@
                                         selections[i][j] = !selections[i][j];
                                     }
                                 }}
-                                class="text-center"
+                                class="text-center {targetDate.split('-')[2] ===
+                                displayDates[i].split(' ')[0].padStart(2, 0)
+                                    ? 'variant-ghost-primary'
+                                    : ''}"
                                 style="width: calc(100% / 7)"
                                 >{day}{#if displayDates}<br />{displayDates[
                                         i
