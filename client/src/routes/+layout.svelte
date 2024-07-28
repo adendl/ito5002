@@ -1,4 +1,6 @@
 <script lang="ts">
+    // Existing imports and code
+
     // Supabase
     export let data;
     let { supabase, session } = data;
@@ -121,6 +123,8 @@
 <!-- App Shell -->
 {#if $page.url.pathname === "/login"}
     <slot />
+{:else if $page.url.pathname === "/about-us"}
+  <slot /> 
 {:else if !loaded}
     <div class="w-full h-full flex justify-center items-center text-center">
         <ConicGradient stops={conicStops} spin>Loading</ConicGradient>
