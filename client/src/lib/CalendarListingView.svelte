@@ -1,5 +1,6 @@
 <script lang="ts">
     export let data;
+    export let selectedDate = new Date().toISOString().split("T")[0];
     let { supabase, session } = data;
     $: ({ supabase, session } = data);
 
@@ -35,7 +36,6 @@
         getContiguousBookings,
     } from "$lib/calendarHelperFunctions.js";
 
-    let selectedDate = new Date().toISOString().split("T")[0];
     let tabSet = 0; // 0 is listing mode, 1 is booking mode
     let startDate;
     let endDate;
@@ -257,7 +257,7 @@
         bind:calendarData
         bind:focusElement
     />
-    <div class="card mt-2 w-full min-h-[23vh]">
+    <div class="card mt-2 w-full min-h-[21vh]">
         {#if !focusElement || focusElement.state === "none"}
             <div class="flex justify-center items-center h-full">
                 {#if noData}
@@ -273,7 +273,7 @@
             </div>
         {:else}
             <div class="grid grid-cols-2 gap-2">
-                <div class="p-4 overflow-y-scroll h-[23vh] overflow-y-scroll">
+                <div class="p-4 overflow-y-scroll h-[21vh] overflow-y-scroll">
                     <h3 class="ml-4">Listings for this timeslot</h3>
                     {#each focusElement.objects as listing, i}
                         <div
@@ -338,7 +338,7 @@
                     </div>
                 {:else if focusListing.state === "requested"}
                     <div
-                        class="p-4 overflow-y-scroll h-[23vh] overflow-y-scroll"
+                        class="p-4 overflow-y-scroll h-[21vh] overflow-y-scroll"
                     >
                         <h3 class="ml-4">Requests for this listing</h3>
                         {#each focusListing.booking_requests as request, i}
@@ -396,7 +396,7 @@
                     </div>
                 {:else if focusListing.state === "booked"}
                     <div
-                        class="p-4 overflow-y-scroll h-[23vh] overflow-y-scroll"
+                        class="p-4 overflow-y-scroll h-[21vh] overflow-y-scroll"
                     >
                         <h3 class="ml-4">Booking for this listing</h3>
                         <div
