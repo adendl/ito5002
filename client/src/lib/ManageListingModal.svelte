@@ -117,17 +117,47 @@
 
     // Remove availabilities for this listing where there is not a booking
     async function removeAvailabilities() {
-        let { data: data, error: error } = await supabase
+        // Get all availabilities for this listing and their bookings
+        const { data, error } = await supabase
             .from("availabilities")
-            .delete()
-            .eq("listing_id", $modalStore[0].meta.listing_id)
-            .eq("booking_id", null);
+            .select(
+                `
+        *,
+        bookings(*)
+    `,
+            )
+            .eq("listing_id", $modalStore[0].meta.listing_id);
+
         if (error) {
             toastStore.trigger({
                 message: "Error removing availabilities",
                 background: "variant-filled-warning",
             });
             console.error("error", error);
+            return;
+        }
+
+        // Remove availabilities where there is no booking
+        const filteredAvailabilities = data.filter((availability) => {
+            return availability.bookings === null;
+        });
+
+        // Remove availabilities
+        const { data: deleteData, error: deleteError } = await supabase
+            .from("availabilities")
+            .delete()
+            .in(
+                "availability_id",
+                filteredAvailabilities.map(
+                    (availability) => availability.availability_id,
+                ),
+            );
+        if (deleteError) {
+            toastStore.trigger({
+                message: "Error removing availabilities",
+                background: "variant-filled-warning",
+            });
+            console.error("error", deleteError);
         } else {
             toastStore.trigger({
                 message: "Availabilities removed",
@@ -260,6 +290,7 @@
                 <button
                     class="btn mt-2 mx-4 mb-0 variant-filled-primary rounded-full"
                     use:popup={popupHover}
+                    on:click={removeAvailabilities}
                 >
                     Stop listing
                 </button>
