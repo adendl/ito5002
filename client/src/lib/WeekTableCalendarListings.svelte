@@ -38,13 +38,17 @@
         { start: 8, end: 12 },
     ];
 
-    let selections = Array.from({ length: 7 }).map(() =>
-        Array.from({ length: 6 }).map(() => false),
-    );
+    function generateSelections() {
+        let selections = Array.from({ length: 7 }).map(() =>
+            Array.from({ length: 6 }).map(() => false),
+        );
+        return selections;
+    }
 
+    let selections = generateSelections();
     function clickHandler(i, j) {
-        selections[i][j] = !selections[i][j];
-        selections = selections;
+        selections = generateSelections();
+        selections[i][j] = true;
     }
 
     $: console.log("targetDate", targetDate);
@@ -110,8 +114,9 @@
                                               : calendarData[j][i].state ===
                                                   'available'
                                                 ? 'ghost-success'
-                                                : 'ghost'}"
-                                        >{start} - {end}</span
+                                                : 'ghost'} {selections[j][i]
+                                            ? 'outline outline-8 outline-secondary-500'
+                                            : ''}">{start} - {end}</span
                                     >
                                 </td>
                             {/each}
