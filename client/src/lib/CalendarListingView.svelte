@@ -173,10 +173,14 @@
             });
             return;
         }
-        const bookingsData = allAvailabilityIds.map((availability_id) => ({
-            availability_id,
-            booking_user_id,
-        }));
+        const bookingsData = allAvailabilityIds.map(
+            (availability_id, index) => ({
+                availability_id,
+                booking_request_id: allRequestIds[index],
+                booking_user_id: booking_user_id,
+            }),
+        );
+
         const { data: newBookings, error: insertError } = await supabase
             .from("bookings")
             .insert(bookingsData);
