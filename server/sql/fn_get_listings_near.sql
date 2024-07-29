@@ -11,6 +11,7 @@ or REPLACE function get_listings_near (query_location geography, limit_count int
   sustainable boolean,
   distance DOUBLE PRECISION,
   suburb text,
+  address text,
   user_name text
 ) as $$
 BEGIN
@@ -25,6 +26,7 @@ BEGIN
         listings.sustainable,
         ST_Distance(places.point, query_location) AS distance,
         places.suburb,
+        places.address,
         users.user_name
     FROM 
         listings

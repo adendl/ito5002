@@ -5,6 +5,7 @@
     export let rating;
     export let place_id;
     export let suburb;
+    export let address;
     export let price_per_hour;
     export let charging_mode;
     export let charger_type;
@@ -28,6 +29,7 @@
             rating,
             place_id,
             suburb,
+            address,
             price_per_hour,
             charging_mode,
             charger_type,
