@@ -6,6 +6,7 @@
         getModeUserPrefers,
         getToastStore,
     } from "@skeletonlabs/skeleton";
+    import { onMount } from "svelte";
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
@@ -23,16 +24,6 @@
     let availabilities = [];
     let userHomePlace;
     let userWorkPlace;
-
-    // Loader
-    import { onMount } from "svelte";
-    import { ConicGradient } from "@skeletonlabs/skeleton";
-    import type { ConicStop } from "@skeletonlabs/skeleton";
-    const conicStops: ConicStop[] = [
-        { color: "transparent", start: 0, end: 25 },
-        { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
-    ];
-    let loaded = false;
 
     async function publishListing() {
         if (
