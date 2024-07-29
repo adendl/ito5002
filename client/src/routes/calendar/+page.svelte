@@ -4,7 +4,8 @@
     $: ({ supabase, session } = data);
 
     import { TabGroup, Tab } from "@skeletonlabs/skeleton";
-    import CalendarListingView from "../../lib/CalendarListingView.svelte";
+    import CalendarListingView from "$lib/CalendarListingView.svelte";
+    import CalendarBookingView from "$lib/CalendarBookingView.svelte";
 
     let selectedDate = new Date().toISOString().split("T")[0];
     let tabSet = 0;
@@ -29,7 +30,7 @@
             {#if tabSet === 0}
                 <CalendarListingView bind:data bind:selectedDate />
             {:else if tabSet === 1}
-                Wawawoowa
+                <CalendarBookingView bind:data bind:selectedDate />
             {/if}
         </svelte:fragment>
     </TabGroup>
