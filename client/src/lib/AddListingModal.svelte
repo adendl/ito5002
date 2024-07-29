@@ -1,7 +1,11 @@
 <script lang="ts">
     import WeekTableListing from "$lib/WeekTableListing.svelte";
     import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
-    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
+    import {
+        getModalStore,
+        getModeUserPrefers,
+        getToastStore,
+    } from "@skeletonlabs/skeleton";
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
@@ -17,6 +21,18 @@
     let chargerType: string;
     let sustainable: boolean = false;
     let availabilities = [];
+    let userHomePlace;
+    let userWorkPlace;
+
+    // Loader
+    import { onMount } from "svelte";
+    import { ConicGradient } from "@skeletonlabs/skeleton";
+    import type { ConicStop } from "@skeletonlabs/skeleton";
+    const conicStops: ConicStop[] = [
+        { color: "transparent", start: 0, end: 25 },
+        { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
+    ];
+    let loaded = false;
 
     async function publishListing() {
         if (
@@ -118,20 +134,75 @@
             });
         }
     }
+
+    onMount(async () => {
+        getUser();
+    });
+
+    async function getUser() {
+        const { data: userData, error } = await supabase
+            .from("users")
+            .select(
+                `
+            user_name,
+            home_place:home_place_id (
+                address,
+                point,
+                suburb
+            ),
+            work_place:work_place_id (
+                address,
+                point,
+                suburb
+            )
+        `,
+            )
+            .eq("user_id", session.user.id)
+            .single();
+
+        if (error) {
+            return;
+        }
+        userHomePlace = userData.home_place ? userData.home_place : null;
+        userWorkPlace = userData.work_place ? userData.work_place : null;
+    }
 </script>
 
 <div class="card m-4 p-4 w-3/5">
     <div class="w-full items-center text-center">
         <h2 class="h4 mb-2">List charging availability</h2>
     </div>
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-2 gap-2 items-end">
         <div>
             <label class="label mt-2">
-                <span>Address</span>
+                <div class="flex justify-between items-end">
+                    <span class="text-left">Address</span>
+                    <div class="flex justify-end">
+                        <button
+                            class="btn-icon btn-icon-sm variant-filled mx-1"
+                            disabled={!userHomePlace}
+                            on:click={() => {
+                                listingAddressString = userHomePlace.address;
+                                listingAddressPoint = userHomePlace.point;
+                                listingAddressSuburb = userHomePlace.suburb;
+                            }}><i class="fa-solid fa-house"></i></button
+                        >
+                        <button
+                            class="btn-icon btn-icon-sm variant-filled mx-1"
+                            disabled={!userWorkPlace}
+                            on:click={() => {
+                                listingAddressString = userWorkPlace.address;
+                                listingAddressPoint = userWorkPlace.point;
+                                listingAddressSuburb = userWorkPlace.suburb;
+                            }}><i class="fa-solid fa-briefcase"></i></button
+                        >
+                    </div>
+                </div>
                 <GeocodeSearchbar
                     bind:addressString={listingAddressString}
                     bind:addressPoint={listingAddressPoint}
                     bind:addressSuburb={listingAddressSuburb}
+                    query={listingAddressString}
                     n={1}
                 />
             </label>
