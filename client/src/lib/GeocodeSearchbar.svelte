@@ -138,6 +138,6 @@
         bind:input={query}
         options={locationOptions}
         on:selection={onSelect}
-        class="card max-w-l overflow-y-scroll overflow-x-scroll max-w-[600px] max-h-[400px]"
+        class="card max-w-l overflow-y-scroll overflow-x-scroll max-w-[600px] max-h-[400px] z-50"
     />
 </div>
