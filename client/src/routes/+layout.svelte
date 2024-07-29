@@ -13,12 +13,18 @@
     onMount(() => {
         if ($page.url.pathname === "/login") {
             return;
+        } else if ($page.url.pathname == "/about-us") {
+            return;
         } else if (session == null || (session.user.role = !"authenticated")) {
             window.location.href = "/login";
         } else {
             loaded = true;
         }
     });
+    const unauthRoutes = ["/login", "/about-us"];
+    $: if (session === null && !unauthRoutes.includes($page.url.pathname)) {
+        window.location.href = "/login";
+    }
 
     // Loading spinner
     import { ConicGradient } from "@skeletonlabs/skeleton";
@@ -81,9 +87,10 @@
     import AddListingModal from "$lib/AddListingModal.svelte";
     import UserProfile from "$lib/UserProfile.svelte";
     const listingModalRef = { ref: AddListingModal };
-    const listingModal = {
+    $: listingModal = {
         type: "component",
         component: listingModalRef,
+        meta: { data },
     };
 
     function triggerModal(modalId) {
@@ -121,6 +128,8 @@
 <!-- App Shell -->
 {#if $page.url.pathname === "/login"}
     <slot />
+{:else if $page.url.pathname === "/about-us"}
+    <slot />
 {:else if !loaded}
     <div class="w-full h-full flex justify-center items-center text-center">
         <ConicGradient stops={conicStops} spin>Loading</ConicGradient>
@@ -134,13 +143,17 @@
         {/if}
     </Drawer>
     <Modal />
-    <Toast />
+    <Toast zIndex="z-[1000]" />
     <AppShell>
         <svelte:fragment slot="header">
             <!-- App Bar -->
             <AppBar class="max-h-[8vh]">
                 <svelte:fragment slot="lead">
-                    <strong class="text-xl uppercase"
+                    <strong
+                        class="text-xl uppercase"
+                        on:click={() => {
+                            window.location.href = "/";
+                        }}
                         >Community<i class="fa-solid fa-bolt"></i>Power</strong
                     >
                 </svelte:fragment>
@@ -153,6 +166,7 @@
                     </button>
                     <button
                         class="btn variant-ghost-surface"
+                        disabled
                         on:click={openNotifications}
                     >
                         <i class="fa-solid fa-bell"></i>
@@ -175,7 +189,7 @@
                             <button
                                 class="btn btn-m variant-filled-primary rounded-full mx-3"
                                 on:click={() => {
-                                    window.location.href = "/about";
+                                    window.location.href = "/about-us";
                                 }}
                             >
                                 <i class="fa-solid fa-info"></i>

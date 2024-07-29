@@ -1,5 +1,7 @@
 <script>
     export let targetDate;
+    export let calendarData;
+    export let focusElement;
 
     let displayDates = [];
     function buildDisplayDates() {
@@ -13,11 +15,9 @@
     }
     $: targetDate, buildDisplayDates();
     function incrementOrDecrementDate(increment) {
-        console.log("incrementing");
         let date = new Date(targetDate);
         date.setDate(date.getDate() + increment);
         targetDate = date.toISOString().split("T")[0];
-        console.log(targetDate);
     }
 
     const days = [
@@ -38,14 +38,20 @@
         { start: 8, end: 12 },
     ];
 
-    let selections = Array.from({ length: 7 }).map(() =>
-        Array.from({ length: 6 }).map(() => false),
-    );
-
-    function clickHandler(i, j) {
-        selections[i][j] = !selections[i][j];
-        selections = selections;
+    function generateSelections() {
+        let selections = Array.from({ length: 7 }).map(() =>
+            Array.from({ length: 6 }).map(() => false),
+        );
+        return selections;
     }
+
+    let selections = generateSelections();
+    function clickHandler(i, j) {
+        selections = generateSelections();
+        selections[i][j] = true;
+    }
+
+    $: console.log("targetDate", targetDate);
 </script>
 
 <div>
@@ -67,7 +73,10 @@
                         <th></th>
                         {#each days as day, i}
                             <th
-                                class="text-center"
+                                class="text-center {targetDate.split('-')[2] ===
+                                displayDates[i].split(' ')[0].padStart(2, 0)
+                                    ? 'variant-ghost-primary'
+                                    : ''}"
                                 style="width: calc(100% / 7)"
                                 >{day}{#if displayDates}<br />{displayDates[
                                         i
@@ -92,11 +101,22 @@
                                     }}
                                 >
                                     <span
-                                        class="chip m-0 w-full h-full variant-{selections[
+                                        on:click={() => {
+                                            focusElement = calendarData[j][i];
+                                        }}
+                                        class="chip m-0 w-full h-full variant-{calendarData[
                                             j
-                                        ][i]
+                                        ][i].state === 'booked'
                                             ? 'filled-success'
-                                            : 'ghost'}">{start} - {end}</span
+                                            : calendarData[j][i].state ===
+                                                'requested'
+                                              ? 'filled-warning'
+                                              : calendarData[j][i].state ===
+                                                  'available'
+                                                ? 'ghost-success'
+                                                : 'ghost'} {selections[j][i]
+                                            ? 'outline outline-8 outline-secondary-500'
+                                            : ''}">{start} - {end}</span
                                     >
                                 </td>
                             {/each}

@@ -51,6 +51,9 @@
                     ></i></button
                 >
             </div>
+            <div class="mt-4">
+                <a href="/about-us"><i class="hover:underline">About us</i></a>
+            </div>
         </div>
     {:else}
         <ConicGradient stops={conicStops} spin>Loading</ConicGradient>

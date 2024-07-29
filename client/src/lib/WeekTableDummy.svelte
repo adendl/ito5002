@@ -11,14 +11,7 @@
         });
         displayDates = displayDates;
     }
-    $: targetDate, buildDisplayDates();
-    function incrementOrDecrementDate(increment) {
-        console.log("incrementing");
-        let date = new Date(targetDate);
-        date.setDate(date.getDate() + increment);
-        targetDate = date.toISOString().split("T")[0];
-        console.log(targetDate);
-    }
+    $: buildDisplayDates();
 
     const days = [
         "Sunday",
@@ -37,26 +30,20 @@
         { start: 4, end: 8 },
         { start: 8, end: 12 },
     ];
-
-    let selections = Array.from({ length: 7 }).map(() =>
-        Array.from({ length: 6 }).map(() => false),
-    );
-
-    function clickHandler(i, j) {
-        selections[i][j] = !selections[i][j];
-        selections = selections;
-    }
 </script>
 
-<div>
-    <div class="card p-4 grid grid-cols-[auto_1fr_auto] gap-4 items-center">
-        <button
-            type="button"
-            class="btn-icon variant-filled"
-            on:click={() => {
-                incrementOrDecrementDate(-7);
-            }}
-        >
+<div class="card p-4 w-full">
+    <div class="flex w-full justify-end items-end mb-2 mr-8">
+        <input
+            class="input w-min mr-14 text-right"
+            type="date"
+            placeholder=""
+            tabindex="-1"
+            value={targetDate}
+        />
+    </div>
+    <div class="grid grid-cols-[auto_1fr_auto] gap-4 items-center">
+        <button type="button" class="btn-icon variant-filled">
             <i class="fa-solid fa-arrow-left" />
         </button>
 
@@ -67,7 +54,10 @@
                         <th></th>
                         {#each days as day, i}
                             <th
-                                class="text-center"
+                                class="text-center {targetDate.split('-')[2] ===
+                                displayDates[i].split(' ')[0].padStart(2, 0)
+                                    ? 'variant-ghost-primary'
+                                    : ''}"
                                 style="width: calc(100% / 7)"
                                 >{day}{#if displayDates}<br />{displayDates[
                                         i
@@ -85,18 +75,10 @@
                                 <td rowspan="3">PM</td>
                             {/if}
                             {#each Array.from({ length: 7 }) as _, j}
-                                <td
-                                    class="m-0 p-0"
-                                    on:click={() => {
-                                        clickHandler(j, i);
-                                    }}
-                                >
+                                <td class="m-0 p-0">
                                     <span
-                                        class="chip m-0 w-full h-full variant-{selections[
-                                            j
-                                        ][i]
-                                            ? 'filled-success'
-                                            : 'ghost'}">{start} - {end}</span
+                                        class="chip m-0 w-full h-full variant-ghost-warning"
+                                        >{start} - {end}</span
                                     >
                                 </td>
                             {/each}
@@ -105,13 +87,7 @@
                 </tbody>
             </table>
         </div>
-        <button
-            type="button"
-            class="btn-icon variant-filled"
-            on:click={() => {
-                incrementOrDecrementDate(7);
-            }}
-        >
+        <button type="button" class="btn-icon variant-filled">
             <i class="fa-solid fa-arrow-right" />
         </button>
     </div>
