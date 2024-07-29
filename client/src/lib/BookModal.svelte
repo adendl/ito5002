@@ -153,6 +153,9 @@
                     .charging_mode} - {$modalStore[0].meta.charger_type} @ ${$modalStore[0]
                     .meta.price_per_hour} per hour
             </h3>
+            {#if $modalStore[0].meta.address}
+                <p class="pt-1">{$modalStore[0].meta.address}</p>
+            {/if}
             <p>
                 <u on:click={triggerRateUserModal}>{userName}</u>
                 <i class="fa-solid fa-star"></i>
