@@ -93,8 +93,6 @@
                 .gte("availabilities.start_time", startDate)
                 .lte("availabilities.start_time", endDate);
 
-        console.log("bookingRequests");
-        console.log(bookingRequests);
         if (bookingRequestError) {
             toastStore.trigger({
                 message: "Error fetching booking requests",
@@ -125,12 +123,7 @@
             noData = true;
         }
 
-        console.log("calendarData");
-        console.log(calendarData);
-
         requestBlocks = getContiguousOutboundRequests(calendarData);
-        console.log("requestBlocks");
-        console.log(requestBlocks);
         loaded = true;
     }
 
@@ -175,21 +168,18 @@
         return requestBlocks;
     }
 
-    async function cancelRequest(booking_user_id, booking_id) {
-        var allBookingIds = [];
-        var allAvailabilityIds = [];
-        console.log(bookingBlocks[booking_user_id]);
-        bookingBlocks[booking_user_id].forEach((block) => {
-            if (block.bookingIds.includes(booking_id)) {
-                allBookingIds = block.bookingIds;
-                allAvailabilityIds = block.availabilityIds;
+    async function cancelRequest(request) {
+        const booking_user_id = request.availabilities.listings.user_id;
+        var allRequestIds = [];
+        requestBlocks[booking_user_id].forEach((block) => {
+            if (block.requestIds.includes(request.booking_request_id)) {
+                allRequestIds = block.requestIds;
             }
         });
-        console.log(allBookingIds);
-        const { data: deletedBookings, error: deleteError } = await supabase
-            .from("bookings")
+        const { data: deletedRequests, error: deleteError } = await supabase
+            .from("booking_requests")
             .delete()
-            .in("booking_id", allBookingIds);
+            .in("booking_request_id", allRequestIds);
         if (deleteError) {
             toastStore.trigger({
                 message: "Error cancelling booking",
@@ -198,12 +188,11 @@
             return;
         }
         toastStore.trigger({
-            message: "Booking cancelled",
+            message: "Requests cancelled",
             background: "variant-filled-success",
         });
         getBookingModeData();
     }
-
 </script>
 
 {#if loaded}
@@ -287,7 +276,7 @@
                                         type="button"
                                         class="btn btn-sm variant-filled m-1"
                                         on:click={(event) =>
-                                            cancelRequest(event, request)}
+                                            cancelRequest(request)}
                                     >
                                         Cancel
                                     </button>
