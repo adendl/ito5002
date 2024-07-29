@@ -5,6 +5,7 @@
 
     import { onMount } from "svelte";
     import ListingCard from "$lib/ListingCard.svelte";
+    import ListingMarker from "$lib/ListingMarker.svelte";
     import { ConicGradient, getToastStore } from "@skeletonlabs/skeleton";
     import type { ConicStop } from "@skeletonlabs/skeleton";
     const conicStops: ConicStop[] = [
@@ -13,7 +14,6 @@
     ];
     let loaded = false;
     const toastStore = getToastStore();
-
     let listings = [];
 
     onMount(async () => {
@@ -23,8 +23,10 @@
             .select(`home_place:home_place_id (point)`)
             .eq("user_id", session.user.id)
             .single();
-        
-        const homePlacePoint = user?.home_place?.point || "0101000020E610000041BCAE5FB0E66240C87C40A033EF40C0";
+
+        const homePlacePoint =
+            user?.home_place?.point ||
+            "0101000020E610000041BCAE5FB0E66240C87C40A033EF40C0";
 
         const { data, error } = await supabase.rpc("get_listings_near", {
             query_location: homePlacePoint,
@@ -38,15 +40,24 @@
             });
             return;
         }
-        console.log("Listings:");
-        console.log(data);
         listings = data;
+        averageCoordinate = getAverageCoordinate(listings);
+        zoomLevel = getZoomLevel(listings);
+        listings = fuzzClusteredListings(listings);
         listings = listings;
         loaded = true;
     });
 
-    import { dummyListingCards } from "../lib/dummyData/listingCards.js";
-    import dummyMap from "$lib/dummyData/dummyMap.png";
+    // Map component
+    import { Map, Marker } from "@beyonk/svelte-mapbox";
+    import {
+        getAverageCoordinate,
+        getZoomLevel,
+        fuzzClusteredListings,
+    } from "$lib/mappingFunctions.js";
+    let mapComponent;
+    let averageCoordinate;
+    let zoomLevel;
 </script>
 
 {#if !loaded}
@@ -61,13 +72,15 @@
             <span class="flex justify-between items-center">
                 <h3 class="h4 mb-3">Charging available nearby</h3>
                 <div>
-                    <button type="button" class="btn m-2 variant-filled"
-                        ><i class="fa-solid fa-filter"></i></button
+                    <button
+                        type="button"
+                        class="btn m-2 variant-filled"
+                        disabled><i class="fa-solid fa-filter"></i></button
                     >
                 </div>
             </span>
             {#each listings as listingCard}
-                <ListingCard {...listingCard} {data}/>
+                <ListingCard {...listingCard} {data} />
             {:else}
                 <div class="flex justify-center items-center h-[90%]">
                     <h4 class="h4">No listings found</h4>
@@ -75,41 +88,26 @@
             {/each}
         </div>
         <div class="card p-4 h-full w-full relative overflow-auto">
-            <img src={dummyMap} alt="Map" class="w-full h-full rounded-lg" />
-            <div
-                class="absolute top-0 left-0 flex justify-center items-center w-full h-full"
+            <Map
+                accessToken="pk.eyJ1Ijoib2otc2VjIiwiYSI6ImNseXpjY3dyaTBvZDUya29uZDd6aGdnbjgifQ.P37-v7FO0PAZ8eKtaluTsw"
+                bind:this={mapComponent}
+                on:recentre={(e) =>
+                    console.log(e.detail.center.lat, e.detail.center.lng)}
+                options={{
+                    scrollZoom: true,
+                    zoomControl: true,
+                    zoom: zoomLevel,
+                    center: averageCoordinate,
+                }}
             >
-                <div class="flex justify-center items-center">
-                    <button
-                        type="button"
-                        class="btn btn-icon variant-ghost"
-                        style="position: absolute; top: 30%; left: 20%;"
-                    >
-                        <i class="fa-solid fa-location-dot"></i>
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-icon variant-ghost"
-                        style="position: absolute; top: 50%; left: 60%;"
-                    >
-                        <i class="fa-solid fa-location-dot"></i>
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-icon variant-ghost"
-                        style="position: absolute; top: 70%; left: 40%;"
-                    >
-                        <i class="fa-solid fa-location-dot"></i>
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-icon variant-ghost"
-                        style="position: absolute; top: 35%; left: 65%;"
-                    >
-                        <i class="fa-solid fa-location-dot"></i>
-                    </button>
-                </div>
-            </div>
+                {#each listings as listing}
+                    <Marker lat={listing.latitude} lng={listing.longitude}>
+                        <div slot="popup">
+                            <ListingMarker {...listing} {data} />
+                        </div>
+                    </Marker>
+                {/each}
+            </Map>
         </div>
     </div>
 {/if}

@@ -1,7 +1,7 @@
-DROP FUNCTION get_listings_near (geography, integer);
+DROP FUNCTION IF EXISTS get_listings_near (geography, integer);
 
-CREATE
-or REPLACE function get_listings_near (query_location geography, limit_count integer) returns table (
+CREATE OR REPLACE FUNCTION get_listings_near (query_location geography, limit_count integer)
+RETURNS TABLE (
   listing_id uuid,
   user_id uuid,
   place_id uuid,
@@ -12,8 +12,10 @@ or REPLACE function get_listings_near (query_location geography, limit_count int
   distance DOUBLE PRECISION,
   suburb text,
   address text,
-  user_name text
-) as $$
+  user_name text,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION
+) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
@@ -27,7 +29,9 @@ BEGIN
         ST_Distance(places.point, query_location) AS distance,
         places.suburb,
         places.address,
-        users.user_name
+        users.user_name,
+        ST_Y(places.point::geometry) AS latitude,
+        ST_X(places.point::geometry) AS longitude
     FROM 
         listings
     JOIN 
@@ -47,4 +51,4 @@ BEGIN
     LIMIT 
         limit_count;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
