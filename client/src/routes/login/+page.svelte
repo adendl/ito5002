@@ -29,11 +29,9 @@
     });
 
     function googleLogin() {
-        console.log("googleLogin");
         supabase.auth.signInWithOAuth({
             provider: "google",
         });
-        console.log("googleLogin end");
     }
 </script>
 
