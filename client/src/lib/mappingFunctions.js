@@ -33,7 +33,7 @@ export function fuzzClusteredListings(listings) {
 
 export function getZoomLevel(listings) {
     if (!listings || listings.length === 0) {
-        throw new Error("The list of listings is empty.");
+        return 5;
     }
     let minLat = Infinity,
         maxLat = -Infinity;
