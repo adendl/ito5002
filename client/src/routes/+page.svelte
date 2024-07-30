@@ -6,7 +6,11 @@
     import { onMount } from "svelte";
     import ListingCard from "$lib/ListingCard.svelte";
     import ListingMarker from "$lib/ListingMarker.svelte";
-    import { ConicGradient, getToastStore } from "@skeletonlabs/skeleton";
+    import {
+        ConicGradient,
+        getToastStore,
+        getDrawerStore,
+    } from "@skeletonlabs/skeleton";
     import type { ConicStop } from "@skeletonlabs/skeleton";
     const conicStops: ConicStop[] = [
         { color: "transparent", start: 0, end: 25 },
@@ -14,7 +18,21 @@
     ];
     let loaded = false;
     const toastStore = getToastStore();
+    const drawerStore = getDrawerStore();
     let listings = [];
+
+    function openProfile() {
+        drawerStore.open({
+            id: "profile",
+            bgDrawer: "bg-purple-900 text-white",
+            bgBackdrop:
+                "bg-gradient-to-tr from-indigo-500/50 via-purple-500/50 to-pink-500/50",
+            width: "w-[280px] md:w-[480px]",
+            padding: "p-4",
+            rounded: "rounded-xl",
+            position: "right",
+        });
+    }
 
     onMount(async () => {
         // Get user's home or default to central Sydney
@@ -23,6 +41,14 @@
             .select(`home_place:home_place_id (point)`)
             .eq("user_id", session.user.id)
             .single();
+
+        if (!user) {
+            openProfile();
+            toastStore.trigger({
+                message: "Please populate profile information",
+                background: "variant-filled-warning",
+            });
+        }
 
         const homePlacePoint =
             user?.home_place?.point ||
@@ -41,6 +67,10 @@
             return;
         }
         listings = data;
+        if (listings.length === 0) {
+            loaded = true;
+            return;
+        }
         averageCoordinate = getAverageCoordinate(listings);
         zoomLevel = getZoomLevel(listings);
         listings = fuzzClusteredListings(listings);
@@ -88,26 +118,34 @@
             {/each}
         </div>
         <div class="card p-4 h-full w-full relative overflow-auto">
-            <Map
-                accessToken="pk.eyJ1Ijoib2otc2VjIiwiYSI6ImNseXpjY3dyaTBvZDUya29uZDd6aGdnbjgifQ.P37-v7FO0PAZ8eKtaluTsw"
-                bind:this={mapComponent}
-                on:recentre={(e) =>
-                    console.log(e.detail.center.lat, e.detail.center.lng)}
-                options={{
-                    scrollZoom: true,
-                    zoomControl: true,
-                    zoom: zoomLevel,
-                    center: averageCoordinate,
-                }}
-            >
-                {#each listings as listing}
-                    <Marker lat={listing.latitude} lng={listing.longitude}>
-                        <div slot="popup">
-                            <ListingMarker {...listing} {data} />
-                        </div>
-                    </Marker>
-                {/each}
-            </Map>
+            {#if listings.length > 0}
+                <Map
+                    accessToken="pk.eyJ1Ijoib2otc2VjIiwiYSI6ImNseXpjY3dyaTBvZDUya29uZDd6aGdnbjgifQ.P37-v7FO0PAZ8eKtaluTsw"
+                    bind:this={mapComponent}
+                    on:recentre={(e) =>
+                        console.log(e.detail.center.lat, e.detail.center.lng)}
+                    options={{
+                        scrollZoom: true,
+                        zoomControl: true,
+                        zoom: zoomLevel,
+                        center: averageCoordinate,
+                    }}
+                >
+                    {#each listings as listing}
+                        <Marker lat={listing.latitude} lng={listing.longitude}>
+                            <div slot="popup">
+                                <ListingMarker {...listing} {data} />
+                            </div>
+                        </Marker>
+                    {/each}
+                </Map>
+            {:else}
+                <div class="flex justify-center items-center h-full">
+                    <ConicGradient stops={conicStops} spin
+                        >Waiting for listings...</ConicGradient
+                    >
+                </div>
+            {/if}
         </div>
     </div>
 {/if}
