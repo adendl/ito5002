@@ -17,6 +17,7 @@
 
     const modalStore = getModalStore();
     import BookModal from "$lib/BookModal.svelte";
+    import PaymentModal from "$lib/PaymentModal.svelte";
     const bookModalRef = { ref: BookModal };
     const bookModal = {
         type: "component",
