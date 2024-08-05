@@ -1,8 +1,12 @@
 import stripe
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
-stripe.api_key = 'your-secret-key'
+stripe.api_key = os.getenv('SECRET_API')
 
 @app.route('/create-payment-intent', methods=['POST'])
 def create_payment():
