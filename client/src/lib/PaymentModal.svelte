@@ -1,76 +1,81 @@
-<script lang="ts">
-    import { onMount } from "svelte";
+<script>
     import { loadStripe } from "@stripe/stripe-js";
+    import { onMount } from "svelte";
 
     let stripe;
     let cardElement;
-    let elements;
-
     let clientSecret;
     let cardHolderName = "";
 
     onMount(async () => {
-        stripe = await loadStripe('YOUR_STRIPE_PUBLIC_KEY');
-        elements = stripe.elements();
-
-        cardElement = elements.create('card');
-        cardElement.mount('#card-element');
+        try {
+            console.log("Loading Stripe...");
+            stripe = await loadStripe('pk_test_51PkLnw2KUA1QbNc3O3b8MeCdAYzCvGXvzprWy7iU4EZ6iWIOBCYq3yATCQtltpiGNtSDxeojDgQghMEdFezs84B500tQXbl2wg');
+            const elements = stripe.elements();
+            cardElement = elements.create('card');
+            cardElement.mount('#card-element');
+            console.log("Stripe loaded and card element mounted.");
+        } catch (error) {
+            console.error("Error loading Stripe or mounting card element:", error);
+        }
     });
 
     async function handlePayment() {
-        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-                card: cardElement,
-                billing_details: {
-                    name: cardHolderName,
+        try {
+            console.log("Confirming card payment...");
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: {
+                        name: cardHolderName,
+                    },
                 },
-            },
-        });
+            });
 
-        if (error) {
-            console.error("Payment failed", error.message);
-            alert("Payment failed: " + error.message);
-        } else {
-            console.log("Payment succeeded!", paymentIntent.id);
-            alert("Payment succeeded!");
+            if (error) {
+                console.error("Payment failed:", error.message);
+                alert("Payment failed: " + error.message);
+            } else {
+                console.log("Payment succeeded:", paymentIntent);
+                alert("Payment succeeded!");
+                // Perform any post-payment actions here, like updating booking status
+            }
+        } catch (error) {
+            console.error("Error during payment confirmation:", error);
         }
     }
 
-    async function createPaymentIntent(amount) {
-        const response = await fetch('http://localhost:5000/create-payment-intent', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ amount }),
-        });
+    async function initiatePayment() {
+        try {
+            console.log("Initiating payment...");
+            const response = await fetch('http://localhost:5000/create-payment-intent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ amount: 1000 }), // Example amount
+            });
 
-        const data = await response.json();
-        if (data.clientSecret) {
-            clientSecret = data.clientSecret;
-        } else {
-            console.error("Error creating payment intent", data.error);
+            const data = await response.json();
+            console.log("Payment intent response:", data);
+
+            if (data.clientSecret) {
+                clientSecret = data.clientSecret;
+                console.log("Client secret received.");
+            } else {
+                console.error("Failed to create payment intent.");
+                alert("Failed to create payment intent");
+            }
+        } catch (error) {
+            console.error("Error initiating payment:", error);
         }
     }
 </script>
 
-<div class="card m-4 p-4 w-3/5">
-    <div class="w-full items-center text-center">
-        <h2 class="h4 mb-2">Enter Payment Information</h2>
-    </div>
-    <div class="grid grid-cols-1 gap-4 items-center">
-        <label>
-            <span>Card Holder Name</span>
-            <input type="text" bind:value={cardHolderName} placeholder="Name" />
-        </label>
-        <div id="card-element" class="mt-2"></div>
-        <button
-            class="btn mt-2 variant-filled-primary"
-            on:click={handlePayment}
-        >
-            Pay
-        </button>
-    </div>
+<div>
+    <input type="text" bind:value={cardHolderName} placeholder="Cardholder Name" />
+    <div id="card-element"></div>
+    <button on:click={handlePayment}>Pay Now</button>
 </div>
 
 <style>
