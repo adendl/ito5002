@@ -3,7 +3,9 @@
     import WeekTableBooking from "$lib/WeekTableBooking.svelte";
     import WeekTableDummy from "$lib/WeekTableDummy.svelte";
     import RateUserModal from "$lib/RateUserModal.svelte";
-    import { onMount, onDestroy } from "svelte";
+    import { onMount } from "svelte";
+    import { loadStripe } from "@stripe/stripe-js";
+
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
@@ -18,8 +20,25 @@
     let bookingRequests = [];
     let loaded = false;
 
+    // Stripe initialization
+    let stripe;
+    let clientSecret;
+    let cardElement;
+    let elements;
+    let cardHolderName = "";
+
     onMount(async () => {
-        await getAvailabilityInWindow();
+        try {
+            console.log("Initializing Stripe...");
+            stripe = await loadStripe('pk_test_51PkLnw2KUA1QbNc3O3b8MeCdAYzCvGXvzprWy7iU4EZ6iWIOBCYq3yATCQtltpiGNtSDxeojDgQghMEdFezs84B500tQXbl2wg');
+            elements = stripe.elements();
+            cardElement = elements.create('card');
+            cardElement.mount('#card-element');
+            console.log("Stripe initialized and card element mounted.");
+            await getAvailabilityInWindow();
+        } catch (error) {
+            console.error("Error during Stripe initialization or availability fetching:", error);
+        }
     });
 
     $: selectedDate, getAvailabilityInWindow();
@@ -35,46 +54,60 @@
     }
 
     async function getAvailabilityInWindow() {
-        loaded = false;
-        getStartEndDate();
-        // Get availabilities in window
-        const listing_id = $modalStore[0].meta.listing_id;
-        const { data, error } = await supabase
-            .from("availabilities")
-            .select("*")
-            .eq("listing_id", listing_id)
-            .gte("start_time", startDate)
-            .lte("start_time", endDate);
-        let rawAvailabilities = data;
-        let availabilityIds = rawAvailabilities.map(
-            (availability) => availability.availability_id,
-        );
-
-        // Get already requested availabilities to exclude
-        if (availabilityIds) {
-            const { data: bookingData, error: bookingError } = await supabase
-                .from("booking_requests")
+        try {
+            loaded = false;
+            getStartEndDate();
+            const listing_id = $modalStore[0].meta.listing_id;
+            console.log(`Fetching availabilities for listing ID: ${listing_id}`);
+            const { data, error } = await supabase
+                .from("availabilities")
                 .select("*")
-                .in("availability_id", availabilityIds)
-                .eq("booking_user_id", session.user.id);
-            let alreadyRequested = bookingData.map(
-                (booking) => booking.availability_id,
-            );
-            if (rawAvailabilities && alreadyRequested) {
-                rawAvailabilities = rawAvailabilities.filter(
-                    (availability) =>
-                        !alreadyRequested.includes(
-                            availability.availability_id,
-                        ),
-                );
+                .eq("listing_id", listing_id)
+                .gte("start_time", startDate)
+                .lte("start_time", endDate);
+
+            if (error) {
+                console.error("Error fetching availabilities:", error);
+                return;
             }
+
+            let rawAvailabilities = data;
+            let availabilityIds = rawAvailabilities.map(
+                (availability) => availability.availability_id,
+            );
+
+            if (availabilityIds) {
+                const { data: bookingData, error: bookingError } = await supabase
+                    .from("booking_requests")
+                    .select("*")
+                    .in("availability_id", availabilityIds)
+                    .eq("booking_user_id", session.user.id);
+
+                if (bookingError) {
+                    console.error("Error fetching booking requests:", bookingError);
+                    return;
+                }
+
+                let alreadyRequested = bookingData.map(
+                    (booking) => booking.availability_id,
+                );
+                if (rawAvailabilities && alreadyRequested) {
+                    rawAvailabilities = rawAvailabilities.filter(
+                        (availability) =>
+                            !alreadyRequested.includes(
+                                availability.availability_id,
+                            ),
+                    );
+                }
+            }
+            availabilities = objectListToDisplayArray(rawAvailabilities);
+            loaded = true;
+        } catch (error) {
+            console.error("Error during availability fetching:", error);
         }
-        availabilities = objectListToDisplayArray(rawAvailabilities);
-        loaded = true;
     }
 
     function objectListToDisplayArray(objectList) {
-        // Convert object list to display array
         let displayArray = Array.from({ length: 7 }).map(() =>
             Array.from({ length: 6 }).map(() => false),
         );
@@ -92,35 +125,102 @@
         return displayArray;
     }
 
-    // Submit booking request
     async function requestBooking() {
-        console.log("Requesting booking");
-        console.log(bookingRequests);
-        if (bookingRequests.length === 0) {
-            toastStore.trigger({
-                background: "variant-filled-warning",
-                message: "Please select at least one time slot to book",
+        try {
+            console.log("Requesting booking", bookingRequests);
+            if (bookingRequests.length === 0) {
+                toastStore.trigger({
+                    background: "variant-filled-warning",
+                    message: "Please select at least one time slot to book",
+                });
+                return;
+            }
+            bookingRequests.forEach((bookingRequest) => {
+                bookingRequest.booking_user_id = session.user.id;
             });
-            return;
+
+            const amount = $modalStore[0].meta.price_per_hour * bookingRequests.length * 100; // Amount in cents
+            console.log(`Creating payment intent for amount: ${amount}`);
+            await createPaymentIntent(amount);
+
+            // Trigger payment after confirming the booking
+            const paymentSuccess = await handlePayment();
+
+            if (paymentSuccess) {
+                const { data, error } = await supabase
+                    .from("booking_requests")
+                    .insert(bookingRequests);
+                if (error) {
+                    toastStore.trigger({
+                        background: "variant-filled-error",
+                        message: error.message,
+                    });
+                } else {
+                    toastStore.trigger({
+                        background: "variant-filled-success",
+                        message: "Booking request submitted",
+                    });
+                    modalStore.close();
+                }
+            } else {
+                toastStore.trigger({
+                    background: "variant-filled-error",
+                    message: "Payment failed. Please try again.",
+                });
+            }
+        } catch (error) {
+            console.error("Error during booking request:", error);
         }
-        bookingRequests.forEach((bookingRequest) => {
-            bookingRequest.booking_user_id = session.user.id;
-        });
-        console.log(bookingRequests);
-        const { data, error } = await supabase
-            .from("booking_requests")
-            .insert(bookingRequests);
-        if (error) {
-            toastStore.trigger({
-                background: "variant-filled-error",
-                message: error.message,
+    }
+
+    async function handlePayment() {
+        try {
+            console.log("Handling payment with Stripe...");
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: {
+                        name: cardHolderName,
+                    },
+                },
             });
-        } else {
-            toastStore.trigger({
-                background: "variant-filled-success",
-                message: "Booking request submitted",
+
+            if (error) {
+                console.error("Payment failed", error.message);
+                alert("Payment failed: " + error.message);
+                return false;
+            } else {
+                console.log("Payment succeeded!", paymentIntent.id);
+                alert("Payment succeeded!");
+                return true;
+            }
+        } catch (error) {
+            console.error("Error during payment handling:", error);
+            return false;
+        }
+    }
+
+    async function createPaymentIntent(amount) {
+        try {
+            const response = await fetch('http://localhost:5000/create-payment-intent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ amount }),
             });
-            modalStore.close();
+
+            const data = await response.json();
+            console.log("Received payment intent:", data);
+
+            if (data.clientSecret) {
+                clientSecret = data.clientSecret;
+                console.log("Client secret set.");
+            } else {
+                console.error("Error creating payment intent", data.error);
+            }
+        } catch (error) {
+            console.error("Error creating payment intent:", error);
         }
     }
 
@@ -177,12 +277,25 @@
             </div>
         {/if}
         <div class="w-full flex justify-center m-auto">
+            <label>
+                <span>Card Holder Name</span>
+                <input type="text" bind:value={cardHolderName} placeholder="Name" />
+            </label>
+            <div id="card-element" class="mt-2"></div>
             <button
                 class="btn mt-4 mb-0 variant-filled-primary rounded-full"
                 on:click={requestBooking}
             >
-                Request booking
+                Request booking and pay
             </button>
         </div>
     </div>
 {/if}
+
+<style>
+    #card-element {
+        border: 1px solid #e0e0e0;
+        padding: 10px;
+        border-radius: 4px;
+    }
+</style>
