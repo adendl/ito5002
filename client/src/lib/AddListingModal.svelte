@@ -1,12 +1,11 @@
-<script lang="ts">
-    import WeekTableListing from "$lib/WeekTableListing.svelte";
-    import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
-    import {
-        getModalStore,
-        getModeUserPrefers,
-        getToastStore,
-    } from "@skeletonlabs/skeleton";
-    import { onMount } from "svelte";
+<script>
+    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
+    import WeekTableBooking from "$lib/WeekTableBooking.svelte";
+    import WeekTableDummy from "$lib/WeekTableDummy.svelte";
+    import RateUserModal from "$lib/RateUserModal.svelte";
+    import { onMount, onDestroy } from "svelte";
+    import { loadStripe } from "@stripe/stripe-js";
+
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
@@ -14,261 +13,247 @@
     $: ({ supabase, session } = data);
 
     let selectedDate = new Date().toISOString().split("T")[0];
-    let listingAddressString = "";
-    let listingAddressPoint;
-    let listingAddressSuburb;
-    let pricePerHour: number;
-    let chargingMode: string;
-    let chargerType: string;
-    let sustainable: boolean = false;
-    let availabilities = [];
-    let userHomePlace;
-    let userWorkPlace;
+    let startDate;
+    let endDate;
+    let availabilities;
+    let alreadyRequested;
+    let bookingRequests = [];
+    let loaded = false;
 
-    async function publishListing() {
-        if (
-            isNaN(pricePerHour) ||
-            !listingAddressString ||
-            !listingAddressPoint ||
-            !chargingMode ||
-            !chargerType ||
-            !availabilities.length
-        ) {
+    // Stripe initialization
+    let stripe;
+    let clientSecret;
+    let cardElement;
+    let elements;
+    let cardHolderName = "";
+
+    onMount(async () => {
+        stripe = await loadStripe('YOUR_STRIPE_PUBLIC_KEY');
+        elements = stripe.elements();
+        cardElement = elements.create('card');
+        cardElement.mount('#card-element');
+        await getAvailabilityInWindow();
+    });
+
+    $: selectedDate, getAvailabilityInWindow();
+
+    function getStartEndDate() {
+        let dateWindow = Array.from({ length: 7 }, (_, i) => {
+            let date = new Date(selectedDate);
+            date.setDate(date.getDate() + i - date.getDay());
+            return date;
+        });
+        startDate = dateWindow[0].toISOString().split("T")[0] + "T00:00:00+10";
+        endDate = dateWindow[6].toISOString().split("T")[0] + "T23:59:59+10";
+    }
+
+    async function getAvailabilityInWindow() {
+        loaded = false;
+        getStartEndDate();
+        const listing_id = $modalStore[0].meta.listing_id;
+        const { data, error } = await supabase
+            .from("availabilities")
+            .select("*")
+            .eq("listing_id", listing_id)
+            .gte("start_time", startDate)
+            .lte("start_time", endDate);
+        let rawAvailabilities = data;
+        let availabilityIds = rawAvailabilities.map(
+            (availability) => availability.availability_id,
+        );
+
+        if (availabilityIds) {
+            const { data: bookingData, error: bookingError } = await supabase
+                .from("booking_requests")
+                .select("*")
+                .in("availability_id", availabilityIds)
+                .eq("booking_user_id", session.user.id);
+            let alreadyRequested = bookingData.map(
+                (booking) => booking.availability_id,
+            );
+            if (rawAvailabilities && alreadyRequested) {
+                rawAvailabilities = rawAvailabilities.filter(
+                    (availability) =>
+                        !alreadyRequested.includes(
+                            availability.availability_id,
+                        ),
+                );
+            }
+        }
+        availabilities = objectListToDisplayArray(rawAvailabilities);
+        loaded = true;
+    }
+
+    function objectListToDisplayArray(objectList) {
+        let displayArray = Array.from({ length: 7 }).map(() =>
+            Array.from({ length: 6 }).map(() => false),
+        );
+        if (objectList) {
+            objectList.forEach((object) => {
+                let date = new Date(object.start_time);
+                let day = date.getDay();
+                let hour = date.getHours();
+                displayArray[day][hour / 4] = {
+                    state: true,
+                    attributes: object,
+                };
+            });
+        }
+        return displayArray;
+    }
+
+    async function requestBooking() {
+        console.log("Requesting booking");
+        console.log(bookingRequests);
+        if (bookingRequests.length === 0) {
             toastStore.trigger({
-                message: "Invalid input - check fields",
                 background: "variant-filled-warning",
+                message: "Please select at least one time slot to book",
             });
             return;
         }
-        let formattedAvailabilities = [];
+        bookingRequests.forEach((bookingRequest) => {
+            bookingRequest.booking_user_id = session.user.id;
+        });
+        console.log(bookingRequests);
 
-        // create place or retrieve id
-        const { data: placeData, error: placeError } = await supabase
-            .from("places")
-            .upsert(
-                [
-                    {
-                        address: listingAddressString,
-                        point: listingAddressPoint,
-                        suburb: listingAddressSuburb,
-                    },
-                ],
-                {
-                    onConflict: ["address", "point"],
-                },
-            )
-            .select("*");
-        const placeId = placeData[0].place_id;
+        // Trigger payment after confirming the booking
+        const paymentSuccess = await handlePayment();
 
-        // create listing or retrieve id
-        const { data: listingData, error: listingError } = await supabase
-            .from("listings")
-            .upsert(
-                [
-                    {
-                        user_id: session.user.id,
-                        place_id: placeId,
-                        price_per_hour: pricePerHour,
-                        charging_mode: chargingMode,
-                        charger_type: chargerType,
-                        sustainable,
-                    },
-                ],
-                {
-                    onConflict: [
-                        "user_id",
-                        "place_id",
-                        "price_per_hour",
-                        "charging_mode",
-                        "charger_type",
-                        "sustainable",
-                    ],
-                },
-            )
-            .select("*");
-        const listingId = listingData[0].listing_id;
-
-        // format and insert availabilities
-        for (const availability of availabilities) {
-            const { startTime, endTime } = availability;
-            formattedAvailabilities.push({
-                listing_id: listingId,
-                start_time: startTime,
-                end_time: endTime,
-            });
-        }
-        try {
-            console.log(formattedAvailabilities);
+        if (paymentSuccess) {
             const { data, error } = await supabase
-                .from("availabilities")
-                .upsert(formattedAvailabilities, {
-                    onConflict: ["listing_id", "start_time"],
-                });
+                .from("booking_requests")
+                .insert(bookingRequests);
             if (error) {
-                console.error("error", error);
                 toastStore.trigger({
-                    message: "Error creating listing",
-                    background: "variant-filled-warning",
+                    background: "variant-filled-error",
+                    message: error.message,
                 });
-                return;
+            } else {
+                toastStore.trigger({
+                    background: "variant-filled-success",
+                    message: "Booking request submitted",
+                });
+                modalStore.close();
             }
+        } else {
             toastStore.trigger({
-                message: "Listing published successfully",
-                background: "variant-filled-success",
-            });
-            modalStore.close();
-        } catch (error) {
-            console.error("error", error);
-            toastStore.trigger({
-                message: "Error publishing listing",
-                background: "variant-filled-warning",
+                background: "variant-filled-error",
+                message: "Payment failed. Please try again.",
             });
         }
     }
 
-    onMount(async () => {
-        getUser();
-    });
-
-    async function getUser() {
-        const { data: userData, error } = await supabase
-            .from("users")
-            .select(
-                `
-            user_name,
-            home_place:home_place_id (
-                address,
-                point,
-                suburb
-            ),
-            work_place:work_place_id (
-                address,
-                point,
-                suburb
-            )
-        `,
-            )
-            .eq("user_id", session.user.id)
-            .single();
+    async function handlePayment() {
+        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+            payment_method: {
+                card: cardElement,
+                billing_details: {
+                    name: cardHolderName,
+                },
+            },
+        });
 
         if (error) {
-            return;
+            console.error("Payment failed", error.message);
+            alert("Payment failed: " + error.message);
+            return false;
+        } else {
+            console.log("Payment succeeded!", paymentIntent.id);
+            alert("Payment succeeded!");
+            return true;
         }
-        userHomePlace = userData.home_place ? userData.home_place : null;
-        userWorkPlace = userData.work_place ? userData.work_place : null;
+    }
+
+    async function createPaymentIntent(amount) {
+        const response = await fetch('http://localhost:5000/create-payment-intent', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ amount }),
+        });
+
+        const data = await response.json();
+        if (data.clientSecret) {
+            clientSecret = data.clientSecret;
+        } else {
+            console.error("Error creating payment intent", data.error);
+        }
+    }
+
+    // Elements for RateUserModal
+    const userName = $modalStore[0].meta.user_name;
+    const rating = $modalStore[0].meta.rating || "?";
+    const rateUserModalRef = { ref: RateUserModal };
+    const rateUserModal = {
+        type: "component",
+        component: rateUserModalRef,
+        meta: {
+            userName,
+            rating,
+        },
+    };
+    function triggerRateUserModal() {
+        modalStore.close();
+        modalStore.trigger(rateUserModal);
     }
 </script>
 
-<div class="card m-4 p-4 w-3/5">
-    <div class="w-full items-center text-center">
-        <h2 class="h4 mb-2">List charging availability</h2>
-    </div>
-    <div class="grid grid-cols-2 gap-2 items-end">
-        <div>
-            <label class="label mt-2">
-                <div class="flex justify-between items-end">
-                    <span class="text-left">Address</span>
-                    <div class="flex justify-end">
-                        <button
-                            class="btn-icon btn-icon-sm variant-filled mx-1"
-                            disabled={!userHomePlace}
-                            on:click={() => {
-                                listingAddressString = userHomePlace.address;
-                                listingAddressPoint = userHomePlace.point;
-                                listingAddressSuburb = userHomePlace.suburb;
-                            }}><i class="fa-solid fa-house"></i></button
-                        >
-                        <button
-                            class="btn-icon btn-icon-sm variant-filled mx-1"
-                            disabled={!userWorkPlace}
-                            on:click={() => {
-                                listingAddressString = userWorkPlace.address;
-                                listingAddressPoint = userWorkPlace.point;
-                                listingAddressSuburb = userWorkPlace.suburb;
-                            }}><i class="fa-solid fa-briefcase"></i></button
-                        >
-                    </div>
-                </div>
-                <GeocodeSearchbar
-                    bind:addressString={listingAddressString}
-                    bind:addressPoint={listingAddressPoint}
-                    bind:addressSuburb={listingAddressSuburb}
-                    query={listingAddressString}
-                    n={1}
+{#if $modalStore[0]}
+    <div class="card m-4 p-4 w-3/5">
+        <div class="w-full items-center text-center">
+            <h2 class="h4 mb-2">Book charging time</h2>
+        </div>
+        <div class="w-full text-center">
+            <h3 class="h4 mb-2">
+                {$modalStore[0].meta.suburb}: Mode {$modalStore[0].meta
+                    .charging_mode} - {$modalStore[0].meta.charger_type} @ ${$modalStore[0]
+                    .meta.price_per_hour} per hour
+            </h3>
+            {#if $modalStore[0].meta.address}
+                <p class="pt-1">{$modalStore[0].meta.address}</p>
+            {/if}
+            <p>
+                <u on:click={triggerRateUserModal}>{userName}</u>
+                <i class="fa-solid fa-star"></i>
+                {rating}
+            </p>
+        </div>
+        {#if loaded}
+            <div class="w-full flex justify-center m-auto my-2">
+                <WeekTableBooking
+                    bind:targetDate={selectedDate}
+                    bind:availabilities
+                    bind:alreadyRequested
+                    bind:bookingRequests
                 />
+            </div>
+        {:else}
+            <div class="w-full flex justify-center m-auto my-2">
+                <WeekTableDummy targetDate={selectedDate} />
+            </div>
+        {/if}
+        <div class="w-full flex justify-center m-auto">
+            <label>
+                <span>Card Holder Name</span>
+                <input type="text" bind:value={cardHolderName} placeholder="Name" />
             </label>
-        </div>
-        <div>
-            <label class="label mt-2"
-                ><span>Price per hour</span>
-                <div
-                    class="input-group input-group-divider grid-cols-[auto_1fr_auto]"
-                >
-                    <div class="input-group-shim">
-                        <i class="fa-solid fa-dollar-sign"></i>
-                    </div>
-                    <input
-                        type="text"
-                        placeholder="Amount"
-                        bind:value={pricePerHour}
-                    />
-                    <select disabled>
-                        <option>AUD</option>
-                    </select>
-                </div>
-            </label>
-        </div>
-        <div>
-            <label class="label">
-                <span>Charging mode</span>
-                <select class="select" bind:value={chargingMode}>
-                    <option value="Mode 1">Mode 1</option>
-                    <option value="Mode 2">Mode 2</option>
-                    <option value="Mode 3">Mode 3</option>
-                    <option value="Mode 4">Mode 4</option>
-                </select>
-            </label>
-        </div>
-        <div>
-            <label class="label">
-                <span>Charger type</span>
-                <select class="select" bind:value={chargerType}>
-                    <option value="Mennekes">Mennekes</option>
-                    <option value="Type 1">Type 1</option>
-                    <option value="CHaDeMO">CHaDeMO</option>
-                    <option value="CCS">CCS</option>
-                    <option value="CCS2">CCS2</option>
-                    <option value="Tesla">Tesla</option>
-                    <option value="GB/T">GB/T</option>
-                </select>
-            </label>
-        </div>
-        <div class="mt-1 flex justify-center items-center text-center">
-            <label class="flex items-center space-x-2">
-                <input
-                    class="checkbox"
-                    type="checkbox"
-                    bind:checked={sustainable}
-                />
-                <p>Sustainably generated</p>
-            </label>
-        </div>
-        <div class="mt-1 flex justify-center items-center text-center">
-            <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" disabled />
-                <p class="text-gray-400">Recur for 3 months</p>
-            </label>
+            <div id="card-element" class="mt-2"></div>
+            <button
+                class="btn mt-4 mb-0 variant-filled-primary rounded-full"
+                on:click={requestBooking}
+            >
+                Request booking and pay
+            </button>
         </div>
     </div>
-    <div class="mt-4">
-        <WeekTableListing bind:targetDate={selectedDate} bind:availabilities />
-    </div>
-    <div class="w-full flex justify-center m-auto">
-        <button
-            class="btn mt-2 mb-0 variant-filled-primary rounded-full"
-            on:click={publishListing}
-        >
-            Publish
-        </button>
-    </div>
-</div>
+{/if}
+
+<style>
+    #card-element {
+        border: 1px solid #e0e0e0;
+        padding: 10px;
+        border-radius: 4px;
+    }
+</style>
