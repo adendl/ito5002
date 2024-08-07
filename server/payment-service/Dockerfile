@@ -12,11 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # Make port 5000 available to the world outside this container
-EXPOSE 5000
+EXPOSE 8080
 
 # Define environment variable
 ENV FLASK_APP=payment-api.py
-ENV FLASK_RUN_HOST=0.0.0.0
 
 # Run app.py when the container launches
-CMD ["flask", "run"]
+CMD ["python", "payment-api.py"]
