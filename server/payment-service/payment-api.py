@@ -18,6 +18,8 @@ stripe.api_key = os.getenv('SECRET_API')
 def create_payment_intent():
     try:
         data = request.get_json()
+        print("Request data:", data)  # Print the request data to the console
+
         amount = data['amount']  # The amount to charge in cents
         payment_intent = stripe.PaymentIntent.create(
             amount=amount,
@@ -27,6 +29,7 @@ def create_payment_intent():
         # Correctly access the client secret
         return jsonify({'clientSecret': payment_intent['client_secret']})
     except Exception as e:
+        print("Error:", str(e))  # Print any exceptions to the console
         return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':

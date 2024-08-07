@@ -4,6 +4,7 @@
     import { onMount } from "svelte";
     import { getToastStore } from "@skeletonlabs/skeleton";
     import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
+    import { goto } from '$app/navigation';
 
     let { supabase, session } = data;
     $: ({ supabase, session } = data);
@@ -23,12 +24,16 @@
     let workAddressPoint = "";
     let workAddressSuburb = "";
     let rating = null;
+    let currentBalance = session.user.balance; // Placeholder value for current balance
+    let currentBalanceStr;
     let loaded = false;
 
     onMount(async () => {
         await getUser();
         loaded = true;
     });
+
+
 
     async function getUser() {
         const { data: user, error } = await supabase
@@ -49,7 +54,8 @@
             contacts (
                 phone_number,
                 email_address
-            )
+            ),
+            balance
         `,
             )
             .eq("user_id", session.user.id)
@@ -59,6 +65,8 @@
             console.error("error", error);
             return;
         }
+        currentBalance = user.balance;
+        currentBalanceStr = `$${currentBalance} AUD`
         console.log(user);
         if (user) {
             contactNumber = user.contacts.phone_number
@@ -74,8 +82,12 @@
             workAddress = user.work_place ? user.work_place.address : null;
             workAddressPoint = user.work_place ? user.work_place.point : null;
             workAddressSuburb = user.work_place ? user.work_place.suburb : null;
+            currentBalance = user.balance || 0; // Update with actual balance from database
+            console.log(currentBalance);
         }
     }
+
+    
 
     async function updateUser() {
         try {
@@ -158,6 +170,11 @@
         }
     }
 
+    function navigateToCharge() {
+        goto('/charge'); // Navigates to the charge page
+        modalStore
+    }
+
     // Error toasts
     const toastStore = getToastStore();
     const errorToast = {
@@ -199,7 +216,7 @@
         />
     </label>
     <label class="label m-2">
-        <span>Name</span>
+        <span>Email</span>
         <input
             disabled
             class="input"
@@ -217,6 +234,19 @@
             bind:value={contactNumber}
         />
     </label>
+    <div class="flex items-center m-2">
+        <label class="label w-1/2">
+            <span>Current Balance</span>
+            <input
+                disabled
+                class="input"
+                type="text"
+                placeholder="Balance"
+                bind:value={currentBalanceStr}
+            />
+        </label>
+        <button class="btn variant-filled-primary w-1/2 ml-2" on:click={navigateToCharge}>Charge</button>
+    </div>
     <label class="label m-2">
         <span>Home address</span>
         <GeocodeSearchbar

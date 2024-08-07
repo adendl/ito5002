@@ -2,25 +2,23 @@
     import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     import WeekTableBooking from "$lib/WeekTableBooking.svelte";
     import WeekTableDummy from "$lib/WeekTableDummy.svelte";
-    import PaymentModal from "$lib/PaymentModal.svelte";
     import RateUserModal from "$lib/RateUserModal.svelte";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     const modalStore = getModalStore();
     const toastStore = getToastStore();
-
-    let data = $modalStore[0]?.meta?.data || {}; // Safely access data
+    let data = $modalStore[0].meta.data;
     let { supabase, session } = data;
+    $: ({ supabase, session } = data);
 
-    let selectedDate = new Date().toISOString().split("T")[0]; // Ensures selectedDate is always defined
-    let startDate, endDate;
-    let availabilities = [];
-    let alreadyRequested = [];
+    let selectedDate = new Date().toISOString().split("T")[0];
+    let startDate;
+    let endDate;
+    let availabilities;
+    let alreadyRequested;
     let bookingRequests = [];
     let loaded = false;
 
-
     onMount(async () => {
-        console.log("Selected Date:", selectedDate);  // Debug selectedDate
         await getAvailabilityInWindow();
     });
 
@@ -40,48 +38,34 @@
         loaded = false;
         getStartEndDate();
         // Get availabilities in window
-        const listing_id = $modalStore[0]?.meta?.listing_id;
-        if (!listing_id) return; // Check if listing_id is available
-
+        const listing_id = $modalStore[0].meta.listing_id;
         const { data, error } = await supabase
             .from("availabilities")
             .select("*")
             .eq("listing_id", listing_id)
             .gte("start_time", startDate)
             .lte("start_time", endDate);
-
-        if (error) {
-            console.error("Error fetching availabilities:", error);
-            return;
-        }
-
         let rawAvailabilities = data;
         let availabilityIds = rawAvailabilities.map(
-            (availability) => availability.availability_id
+            (availability) => availability.availability_id,
         );
 
         // Get already requested availabilities to exclude
-        if (availabilityIds.length > 0) {
+        if (availabilityIds) {
             const { data: bookingData, error: bookingError } = await supabase
                 .from("booking_requests")
                 .select("*")
                 .in("availability_id", availabilityIds)
                 .eq("booking_user_id", session.user.id);
-
-            if (bookingError) {
-                console.error("Error fetching booking requests:", bookingError);
-                return;
-            }
-
             let alreadyRequested = bookingData.map(
-                (booking) => booking.availability_id
+                (booking) => booking.availability_id,
             );
             if (rawAvailabilities && alreadyRequested) {
                 rawAvailabilities = rawAvailabilities.filter(
                     (availability) =>
                         !alreadyRequested.includes(
-                            availability.availability_id
-                        )
+                            availability.availability_id,
+                        ),
                 );
             }
         }
@@ -92,7 +76,7 @@
     function objectListToDisplayArray(objectList) {
         // Convert object list to display array
         let displayArray = Array.from({ length: 7 }).map(() =>
-            Array.from({ length: 6 }).map(() => false)
+            Array.from({ length: 6 }).map(() => false),
         );
         if (objectList) {
             objectList.forEach((object) => {
@@ -108,12 +92,10 @@
         return displayArray;
     }
 
-    const paymentModalRef = { ref: PaymentModal };
-
+    // Submit booking request
     async function requestBooking() {
         console.log("Requesting booking");
-        console.log("Booking Requests:", bookingRequests);
-
+        console.log(bookingRequests);
         if (bookingRequests.length === 0) {
             toastStore.trigger({
                 background: "variant-filled-warning",
@@ -121,45 +103,28 @@
             });
             return;
         }
-
-        bookingRequests.forEach(bookingRequest => {
+        bookingRequests.forEach((bookingRequest) => {
             bookingRequest.booking_user_id = session.user.id;
         });
-
-
-        console.log("Triggering Payment Modal");
-        console.log(calculateTotalAmount());
-        modalStore.close();
-        modalStore.trigger({
-            type: 'component',
-            component: paymentModalRef,
-            props: {
-                totalAmount: 50,
-                onPaymentSuccess: handlePaymentSuccess,
-                onPaymentFailure: handlePaymentFailure
-            }
-        });
+        console.log(bookingRequests);
+        const { data, error } = await supabase
+            .from("booking_requests")
+            .insert(bookingRequests);
+        if (error) {
+            toastStore.trigger({
+                background: "variant-filled-error",
+                message: error.message,
+            });
+        } else {
+            toastStore.trigger({
+                background: "variant-filled-success",
+                message: "Booking request submitted",
+            });
+            modalStore.close();
+        }
     }
 
-    function calculateTotalAmount() {
-        return bookingRequests.length * ($modalStore[0]?.meta?.price_per_hour || 0) * 100; // Assuming duration of each booking request is 1 hour
-    }
-
-    function handlePaymentSuccess() {
-        toastStore.trigger({
-            background: "variant-filled-success",
-            message: "Payment successful and booking confirmed!",
-        });
-        modalStore.close();
-    }
-
-    function handlePaymentFailure(message) {
-        toastStore.trigger({
-            background: "variant-filled-error",
-            message: `Payment failed: ${message}`,
-        });
-    }
-
+    // Elements for RateUserModal
     const userName = $modalStore[0].meta.user_name;
     const rating = $modalStore[0].meta.rating || "?";
     const rateUserModalRef = { ref: RateUserModal };
@@ -199,11 +164,11 @@
         </div>
         {#if loaded}
             <div class="w-full flex justify-center m-auto my-2">
-                <WeekTableBooking 
-                    bind:targetDate={selectedDate} 
-                    bind:availabilities={availabilities} 
-                    bind:alreadyRequested={alreadyRequested} 
-                    bind:bookingRequests={bookingRequests} 
+                <WeekTableBooking
+                    bind:targetDate={selectedDate}
+                    bind:availabilities
+                    bind:alreadyRequested
+                    bind:bookingRequests
                 />
             </div>
         {:else}
