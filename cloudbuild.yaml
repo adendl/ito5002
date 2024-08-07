@@ -1,11 +1,24 @@
 steps:
+  # Build the client image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA', './client']
+
+  # Push the client image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA']
 
+  # Build the API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/payment-service-app:$COMMIT_SHA', './server/payment-service']
+
+  # Push the API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/payment-service-app:$COMMIT_SHA']
+
+# Define images to store in Container Registry
 images:
   - 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/sveltejs-app:$COMMIT_SHA'
+  - 'australia-southeast1-docker.pkg.dev/concrete-setup-429807-v6/ito4002/payment-service-app:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
