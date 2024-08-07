@@ -1,21 +1,27 @@
+import os
 from flask import Flask, request, jsonify
 import stripe
-from dotenv import load_dotenv
-import os
+from flask_cors import CORS
 
-load_dotenv()
 app = Flask(__name__)
+CORS(app)
 
-stripe.api_key = os.getenv('STRIPE_API')
+# Load environment variable directly if available, otherwise load from .env file
+if 'SECRET_API' in os.environ:
+    stripe.api_key = os.getenv('SECRET_API')
+else:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+    stripe.api_key = os.getenv('SECRET_API')
 
 @app.route('/create-payment-intent', methods=['POST'])
 def create_payment_intent():
     try:
         data = request.get_json()
-        amount = data['amount']  # The amount to charge
+        amount = data['amount']
         payment_intent = stripe.PaymentIntent.create(
             amount=amount,
-            currency='usd',
+            currency='aud',
             payment_method_types=['card']
         )
         return jsonify({'clientSecret': payment_intent['client_secret']})

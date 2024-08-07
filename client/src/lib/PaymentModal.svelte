@@ -1,87 +1,66 @@
 <script>
-    import { loadStripe } from "@stripe/stripe-js";
     import { onMount } from "svelte";
+    import { loadStripe } from "@stripe/stripe-js";
+    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
 
-    let stripe;
-    let cardElement;
+    let stripe, cardElement;
     let clientSecret;
-    let cardHolderName = "";
+    const modalStore = getModalStore();
+    let totalAmount = 50; // Assume this is passed in or correctly set before use
 
     onMount(async () => {
         try {
-            console.log("Loading Stripe...");
-            stripe = await loadStripe('pk_test_51PkLnw2KUA1QbNc3O3b8MeCdAYzCvGXvzprWy7iU4EZ6iWIOBCYq3yATCQtltpiGNtSDxeojDgQghMEdFezs84B500tQXbl2wg');
+            stripe = await loadStripe("pk_test_51PkLnw2KUA1QbNc3O3b8MeCdAYzCvGXvzprWy7iU4EZ6iWIOBCYq3yATCQtltpiGNtSDxeojDgQghMEdFezs84B500tQXbl2wg");
             const elements = stripe.elements();
             cardElement = elements.create('card');
-            cardElement.mount('#card-element');
-            console.log("Stripe loaded and card element mounted.");
-        } catch (error) {
-            console.error("Error loading Stripe or mounting card element:", error);
-        }
-    });
+            // Mount card element in the next tick to ensure the DOM is ready
+            setTimeout(() => cardElement.mount('#card-element'), 0);
 
-    async function handlePayment() {
-        try {
-            console.log("Confirming card payment...");
-            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: {
-                    card: cardElement,
-                    billing_details: {
-                        name: cardHolderName,
-                    },
-                },
-            });
-
-            if (error) {
-                console.error("Payment failed:", error.message);
-                alert("Payment failed: " + error.message);
-            } else {
-                console.log("Payment succeeded:", paymentIntent);
-                alert("Payment succeeded!");
-                // Perform any post-payment actions here, like updating booking status
-            }
-        } catch (error) {
-            console.error("Error during payment confirmation:", error);
-        }
-    }
-
-    async function initiatePayment() {
-        try {
-            console.log("Initiating payment...");
             const response = await fetch('http://localhost:5000/create-payment-intent', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ amount: 1000 }), // Example amount
+                body: JSON.stringify({ amount: totalAmount * 100 }) // Convert dollars to cents
             });
-
             const data = await response.json();
-            console.log("Payment intent response:", data);
-
             if (data.clientSecret) {
                 clientSecret = data.clientSecret;
-                console.log("Client secret received.");
             } else {
-                console.error("Failed to create payment intent.");
-                alert("Failed to create payment intent");
+                console.error("Failed to retrieve client secret:", data.error);
             }
         } catch (error) {
-            console.error("Error initiating payment:", error);
+            console.error("Error setting up Stripe:", error);
+        }
+    });
+
+    async function handlePayment() {
+        if (!stripe || !clientSecret) {
+            console.error("Stripe not initialized or client secret not retrieved.");
+            return;
+        }
+
+        try {
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: { name: "Cardholder Name" } // Placeholder for actual cardholder name input
+                },
+            });
+
+            if (error) {
+                console.error("Payment failed:", error.message);
+            } else {
+                console.log("Payment successful:", paymentIntent.id);
+                // Handle successful payment here
+            }
+        } catch (error) {
+            console.error("Error confirming payment:", error);
         }
     }
 </script>
 
-<div>
-    <input type="text" bind:value={cardHolderName} placeholder="Cardholder Name" />
+<div class="payment-container">
     <div id="card-element"></div>
-    <button on:click={handlePayment}>Pay Now</button>
+    <button on:click={handlePayment}>Pay $${(totalAmount / 100).toFixed(2)}</button>
 </div>
-
-<style>
-    #card-element {
-        border: 1px solid #e0e0e0;
-        padding: 10px;
-        border-radius: 4px;
-    }
-</style>
