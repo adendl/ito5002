@@ -10,20 +10,25 @@
     import { page } from "$app/stores";
     import { onMount } from "svelte";
     let loaded = false;
+
+    const unauthRoutes = ["/login", "/about-us", "/home"];
+
     onMount(() => {
-        if ($page.url.pathname === "/login") {
-            return;
-        } else if ($page.url.pathname == "/about-us") {
-            return;
-        } else if (session == null || (session.user.role = !"authenticated")) {
-            window.location.href = "/login";
+        // Check if the current path is an unauthenticated route
+        if (!unauthRoutes.includes($page.url.pathname)) {
+            // If not authenticated and not on an unauthenticated route, redirect to /home
+            if (!session) {
+                window.location.href = "/home";
+            } else {
+                loaded = true;
+            }
         } else {
             loaded = true;
         }
     });
-    const unauthRoutes = ["/login", "/about-us"];
-    $: if (session === null && !unauthRoutes.includes($page.url.pathname)) {
-        window.location.href = "/login";
+
+    $: if (!session && !unauthRoutes.includes($page.url.pathname)) {
+        window.location.href = "/home";
     }
 
     // Loading spinner
@@ -72,7 +77,7 @@
     import "@fortawesome/fontawesome-free/css/solid.css";
     import "@fortawesome/fontawesome-free/css/regular.css";
 
-    // Modals, Toasts, and Dawers
+    // Modals, Toasts, and Drawers
     import { Modal } from "@skeletonlabs/skeleton";
     import { Toast } from "@skeletonlabs/skeleton";
     import { Drawer } from "@skeletonlabs/skeleton";
@@ -129,6 +134,8 @@
 {#if $page.url.pathname === "/login"}
     <slot />
 {:else if $page.url.pathname === "/about-us"}
+    <slot />
+{:else if $page.url.pathname === "/home"}
     <slot />
 {:else if !loaded}
     <div class="w-full h-full flex justify-center items-center text-center">

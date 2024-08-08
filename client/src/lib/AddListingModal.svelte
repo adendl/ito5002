@@ -20,18 +20,7 @@
     let bookingRequests = [];
     let loaded = false;
 
-    // Stripe initialization
-    let stripe;
-    let clientSecret;
-    let cardElement;
-    let elements;
-    let cardHolderName = "";
-
     onMount(async () => {
-        stripe = await loadStripe('YOUR_STRIPE_PUBLIC_KEY');
-        elements = stripe.elements();
-        cardElement = elements.create('card');
-        cardElement.mount('#card-element');
         await getAvailabilityInWindow();
     });
 
