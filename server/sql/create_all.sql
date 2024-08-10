@@ -225,7 +225,7 @@ BEGIN
     FROM availabilities
     WHERE availability_id = OLD.availability_id;
 
-    IF OLD.booking_user_id = current_setting('user.id', true)::uuid THEN
+    IF OLD.booking_user_id = auth.uid() THEN
         recipient_user := listing_owner;
         notification_message := 'bookee_cancelled';
     ELSE
@@ -271,7 +271,12 @@ CREATE OR REPLACE FUNCTION notify_booking_user_status_change()
 RETURNS TRIGGER AS $$
 DECLARE
     notification_message TEXT;
+    availability_date DATE;
 BEGIN
+    SELECT a.start_time::DATE INTO availability_date
+    FROM availabilities a
+    WHERE a.availability_id = NEW.availability_id;
+
     IF NEW.status <> OLD.status THEN
         IF NEW.status = 'accepted' THEN
             notification_message := 'request_accepted';
@@ -281,7 +286,7 @@ BEGIN
             RETURN NEW; 
         END IF;
         INSERT INTO notifications (for_user_id, date, message)
-        VALUES (NEW.booking_user_id, NOW()::DATE, notification_message)
+        VALUES (NEW.booking_user_id, availability_date, notification_message)
         ON CONFLICT (for_user_id, date, message)
         DO UPDATE SET timestamp = NOW();
     END IF;
@@ -289,6 +294,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 
 -- TRIGGERS
 

@@ -15,7 +15,7 @@ BEGIN
     FROM availabilities
     WHERE availability_id = OLD.availability_id;
 
-    IF OLD.booking_user_id = current_setting('user.id', true)::uuid THEN
+    IF OLD.booking_user_id = auth.uid() THEN
         recipient_user := listing_owner;
         notification_message := 'bookee_cancelled';
     ELSE
