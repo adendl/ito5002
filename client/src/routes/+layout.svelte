@@ -137,7 +137,7 @@
 {:else}
     <Drawer>
         {#if $drawerStore.id === "messages"}
-            <MessageFeed />
+            <MessageFeed {data} />
         {:else if $drawerStore.id === "profile"}
             <UserProfile {data} />
         {/if}
@@ -166,7 +166,6 @@
                     </button>
                     <button
                         class="btn variant-ghost-surface"
-                        disabled
                         on:click={openNotifications}
                     >
                         <i class="fa-solid fa-bell"></i>
