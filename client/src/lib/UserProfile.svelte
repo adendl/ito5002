@@ -95,25 +95,47 @@
                     suburb: workAddressSuburb,
                 });
             }
-            const { data: placeData, error: placeError } = await supabase
-                .from("places")
-                .upsert(places, {
-                    onConflict: ["address", "point"],
-                })
-                .select("*");
 
-            if (placeError) {
-                console.error("error", placeError);
+            // RLS means we cannot upsert, so we attemt to select both places then insert any that are missing
+            const { data: existingPlaces, error: existingPlacesError } =
+                await supabase
+                    .from("places")
+                    .select("*")
+                    .in("address", [homeAddress, workAddress]);
+
+            if (existingPlacesError) {
+                console.error("error", existingPlacesError);
                 toastStore.trigger(errorToast);
                 return;
             }
 
-            const homePlaceId = placeData.find(
+            const existingPlaceAddresses = existingPlaces.map(
+                (place) => place.address,
+            );
+            places = places.filter(
+                (place) => !existingPlaceAddresses.includes(place.address),
+            );
+
+            const { data: newPlaces, error: newPlacesError } = await supabase
+                .from("places")
+                .insert(places)
+                .select("*");
+
+            if (newPlacesError) {
+                console.error("error", newPlacesError);
+                toastStore.trigger(errorToast);
+                return;
+            }
+
+            places = [...existingPlaces, ...newPlaces];
+
+            const homePlaceId = places.find(
                 (place) => place.address === homeAddress,
             )?.place_id;
-            const workPlaceId = placeData.find(
+            const workPlaceId = places.find(
                 (place) => place.address === workAddress,
             )?.place_id;
+
             const { data: user, error: userError } = await supabase
                 .from("users")
                 .upsert([

@@ -42,23 +42,44 @@
         }
         let formattedAvailabilities = [];
 
-        // create place or retrieve id
+        // cannot use upsert due to RLS, so attempt to insert place and listing then insert on error
+        let placeId;
         const { data: placeData, error: placeError } = await supabase
             .from("places")
-            .upsert(
-                [
-                    {
-                        address: listingAddressString,
-                        point: listingAddressPoint,
-                        suburb: listingAddressSuburb,
-                    },
-                ],
+            .insert([
                 {
-                    onConflict: ["address", "point"],
+                    address: listingAddressString,
+                    point: listingAddressPoint,
+                    suburb: listingAddressSuburb,
                 },
-            )
+            ])
             .select("*");
-        const placeId = placeData[0].place_id;
+        if (placeError) {
+            if (placeError.code === "23505") {
+                const { data: placeData, error: placeError } = await supabase
+                    .from("places")
+                    .select("*")
+                    .eq("address", listingAddressString);
+                placeId = placeData[0].place_id;
+                if (placeError) {
+                    console.error("error", placeError);
+                    toastStore.trigger({
+                        message: "Error creating place",
+                        background: "variant-filled-warning",
+                    });
+                    return;
+                }
+            } else {
+                console.error("error", placeError);
+                toastStore.trigger({
+                    message: "Error creating place",
+                    background: "variant-filled-warning",
+                });
+                return;
+            }
+        } else {
+            placeId = placeData[0].place_id;
+        }
 
         // create listing or retrieve id
         const { data: listingData, error: listingError } = await supabase
