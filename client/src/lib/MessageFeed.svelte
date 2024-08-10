@@ -13,9 +13,10 @@
 
     async function getMessages() {
         const { data: messageData, error } = await supabase
-            .from("messages")
+            .from("notifications")
             .select("*")
-            .order("created_at", { ascending: false });
+            .order("timestamp", { ascending: false })
+            .eq("for_user_id", session.user.id);
 
         if (error) {
             console.error("error", error);
@@ -24,6 +25,36 @@
             messages = messageData;
         }
     }
+
+    function resolveMessage(messageText) {
+        if (messageText === "booking_request") {
+            return "You have a new request for your charger on "
+        } else {
+            return 
+        }
+    }
+
+    function prettyDate(date) {
+        // format should be 10 August 2021
+        return new Date(date).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+
+    function prettyTimestamp(timestamp) {
+        // format should be 2021-08-10 12:00:00 in the user's timezone
+        return new Date(timestamp).toLocaleString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric'
+        });
+    }
+
 </script>
 
 {#if messages.length === 0}
@@ -32,8 +63,9 @@
     </div>
 {:else}
     {#each messages as message}
-        <div class="card p-4 m-4">
-            <p class="mt-4">{message.subject} {message.message}</p>
+        <div class="card p-4 m-4 card-hover">
+            <p class="text-sm text-gray-400">{prettyTimestamp(message.timestamp)}</p>
+            <p>{resolveMessage(message.message)} {prettyDate(message.date)}.</p>
         </div>
     {/each}
 {/if}
