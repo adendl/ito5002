@@ -6,5 +6,5 @@ CREATE TABLE notifications (
     date DATE NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     message TEXT NOT NULL,
-    CONSTRAINT unique_notification_per_day UNIQUE (for_user_id, date)
+    CONSTRAINT unique_notification_per_day UNIQUE (for_user_id, date, message)
 );

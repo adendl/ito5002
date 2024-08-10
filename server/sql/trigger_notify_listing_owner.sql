@@ -16,7 +16,7 @@ BEGIN
     notification_message := 'booking_request';
     INSERT INTO notifications (for_user_id, date, message)
     VALUES (listing_owner, notification_date, notification_message)
-    ON CONFLICT (for_user_id, date)
+    ON CONFLICT (for_user_id, date, message)
     DO UPDATE SET timestamp = NOW();
 
     RETURN NEW;
