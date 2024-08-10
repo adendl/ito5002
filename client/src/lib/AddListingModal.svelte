@@ -55,9 +55,7 @@
             ])
             .select("*");
         if (placeError) {
-            console.error("error", placeError);
             if (placeError.code === "23505") {
-                console.log("place already exists, retrieving");
                 const { data: placeData, error: placeError } = await supabase
                     .from("places")
                     .select("*")
