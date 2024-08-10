@@ -1,25 +1,29 @@
 <script lang="ts">
     import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     import { onMount } from "svelte";
+    import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
+    import { ConicGradient } from "@skeletonlabs/skeleton";
+    import type { ConicStop } from "@skeletonlabs/skeleton";
+    import { popup } from "@skeletonlabs/skeleton";
+    import type { PopupSettings } from "@skeletonlabs/skeleton";
+
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
     let { supabase, session } = data;
     $: ({ supabase, session } = data);
-    import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
 
     let listing;
     let listingAddressString;
     let listingAddressPoint;
     let listingAddressSuburb;
-    let pricePerHour;
+    let pricePerHour = '';
     let chargingMode;
     let chargerType;
     let sustainable;
-
-    // loader
-    import { ConicGradient } from "@skeletonlabs/skeleton";
-    import type { ConicStop } from "@skeletonlabs/skeleton";
+    let isRecurring;
+    let recurrenceId;
+    let updateScope = 'all'; // Options: 'this', 'all'
     let loaded = false;
     const conicStops: ConicStop[] = [
         { color: "transparent", start: 0, end: 25 },
@@ -27,7 +31,7 @@
     ];
 
     onMount(async () => {
-        getListing($modalStore[0].meta.listing_id);
+        await getListing($modalStore[0].meta.listing_id);
     });
 
     async function getListing(listing_id) {
@@ -42,6 +46,10 @@
             )
             .eq("listing_id", listing_id);
         if (error) {
+            toastStore.trigger({
+                message: "Error fetching listing details",
+                background: "variant-filled-warning",
+            });
             console.error("error", error);
         } else {
             listing = data[0];
@@ -52,12 +60,33 @@
             chargingMode = listing.charging_mode;
             chargerType = listing.charger_type;
             sustainable = listing.sustainable;
+            isRecurring = listing.is_recurring;
+            recurrenceId = listing.recurrence_id;
         }
         loaded = true;
         console.log(listing);
     }
 
     async function updateListing() {
+        // Basic Validation
+        if (!pricePerHour || isNaN(Number(pricePerHour)) || Number(pricePerHour) <= 0) {
+            toastStore.trigger({
+                message: "Invalid price per hour",
+                background: "variant-filled-warning",
+            });
+            return;
+        }
+
+        // Validate address
+        if (!listingAddressString || !listingAddressPoint) {
+            toastStore.trigger({
+                message: "Invalid address details",
+                background: "variant-filled-warning",
+            });
+            return;
+        }
+
+        // Update place
         let { data: placeData, error: placeError } = await supabase
             .from("places")
             .upsert(
@@ -75,25 +104,29 @@
             .select("*");
         if (placeError) {
             toastStore.trigger({
-                message: "Error updating listing",
+                message: "Error updating place details",
                 background: "variant-filled-warning",
             });
             console.error("error", placeError);
             return;
         }
         const placeId = placeData[0].place_id;
-        let { data: data, error: error } = await supabase
+
+        // Update listing
+        let { data: updatedListingData, error: updateError } = await supabase
             .from("listings")
             .upsert(
                 [
                     {
                         listing_id: $modalStore[0].meta.listing_id,
-                        price_per_hour: pricePerHour,
+                        price_per_hour: Number(pricePerHour),
                         charging_mode: chargingMode,
                         charger_type: chargerType,
                         user_id: session.user.id,
                         place_id: placeId,
                         sustainable,
+                        is_recurring: isRecurring,
+                        recurrence_id: isRecurring ? recurrenceId : null,
                     },
                 ],
                 {
@@ -101,21 +134,57 @@
                 },
             )
             .select("*");
-        if (error) {
+        if (updateError) {
             toastStore.trigger({
-                message: "Error updating listing",
+                message: "Error updating listing details",
                 background: "variant-filled-warning",
             });
-            console.error("error", error);
-        } else {
-            toastStore.trigger({
-                message: "Listing updated",
-                background: "variant-filled-success",
-            });
+            console.error("error", updateError);
+            return;
         }
+
+        // Handle updating recurring listings based on user choice
+        if (isRecurring && updateScope === 'this') {
+            // Convert the current occurrence to a non-recurring listing
+            const { data: updatedOccurrenceData, error: occurrenceError } = await supabase
+                .from("listings")
+                .update({ is_recurring: false, recurrence_id: null })
+                .eq("listing_id", $modalStore[0].meta.listing_id);
+
+            if (occurrenceError) {
+                toastStore.trigger({
+                    message: "Error updating current occurrence",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", occurrenceError);
+            }
+        } else if (isRecurring && updateScope === 'all') {
+            // Apply changes to all future occurrences
+            const { data: allFutureOccurrences, error: futureError } = await supabase
+                .from("listings")
+                .update({
+                    price_per_hour: Number(pricePerHour),
+                    charging_mode: chargingMode,
+                    charger_type: chargerType,
+                    sustainable,
+                })
+                .eq("recurrence_id", recurrenceId);
+
+            if (futureError) {
+                toastStore.trigger({
+                    message: "Error updating future occurrences",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", futureError);
+            }
+        }
+
+        toastStore.trigger({
+            message: "Listing updated successfully",
+            background: "variant-filled-success",
+        });
     }
 
-    // Remove availabilities for this listing where there is not a booking
     async function removeAvailabilities() {
         // Get all availabilities for this listing and their bookings
         const { data, error } = await supabase
@@ -130,7 +199,7 @@
 
         if (error) {
             toastStore.trigger({
-                message: "Error removing availabilities",
+                message: "Error fetching availabilities",
                 background: "variant-filled-warning",
             });
             console.error("error", error);
@@ -139,8 +208,16 @@
 
         // Remove availabilities where there is no booking
         const filteredAvailabilities = data.filter((availability) => {
-            return availability.bookings === null;
+            return !availability.bookings || availability.bookings.length === 0;
         });
+
+        if (filteredAvailabilities.length === 0) {
+            toastStore.trigger({
+                message: "No availabilities to remove",
+                background: "variant-filled-info",
+            });
+            return;
+        }
 
         // Remove availabilities
         const { data: deleteData, error: deleteError } = await supabase
@@ -160,14 +237,16 @@
             console.error("error", deleteError);
         } else {
             toastStore.trigger({
-                message: "Availabilities removed",
+                message: "Availabilities removed successfully",
                 background: "variant-filled-success",
             });
         }
     }
 
-    // Remove listing and cascade deletions
     async function removeListing() {
+        // Remove availabilities before deleting the listing
+        await removeAvailabilities();
+
         let { data: data, error: error } = await supabase
             .from("listings")
             .delete()
@@ -180,15 +259,12 @@
             console.error("error", error);
         } else {
             toastStore.trigger({
-                message: "Listing removed",
+                message: "Listing removed successfully",
                 background: "variant-filled-success",
             });
         }
     }
 
-    // Information popups
-    import { popup } from "@skeletonlabs/skeleton";
-    import type { PopupSettings } from "@skeletonlabs/skeleton";
     const popupHover: PopupSettings = {
         event: "hover",
         target: "popupHover",
@@ -222,11 +298,9 @@
                         </label>
                     </div>
                     <div>
-                        <label class="label mt-2"
-                            ><span>Price per hour</span>
-                            <div
-                                class="input-group input-group-divider grid-cols-[auto_1fr_auto]"
-                            >
+                        <label class="label mt-2">
+                            <span>Price per hour</span>
+                            <div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
                                 <div class="input-group-shim">
                                     <i class="fa-solid fa-dollar-sign"></i>
                                 </div>
@@ -234,6 +308,7 @@
                                     type="text"
                                     placeholder="Amount"
                                     bind:value={pricePerHour}
+                                    pattern="\d*"
                                 />
                                 <select disabled>
                                     <option>AUD</option>
@@ -266,9 +341,7 @@
                             </select>
                         </label>
                     </div>
-                    <div
-                        class="mt-1 col-span-2 flex justify-center items-center text-center"
-                    >
+                    <div class="mt-1 col-span-2 flex justify-center items-center text-center">
                         <label class="flex items-center space-x-2">
                             <input
                                 class="checkbox"
@@ -280,6 +353,17 @@
                     </div>
                 </div>
             </div>
+            {#if isRecurring}
+                <div class="mt-4">
+                    <label class="label">
+                        <span>Update scope</span>
+                        <select class="select" bind:value={updateScope}>
+                            <option value="all">All future bookings</option>
+                            <option value="this">This booking only</option>
+                        </select>
+                    </label>
+                </div>
+            {/if}
             <div class="w-full mt-4 flex justify-center m-auto">
                 <button
                     class="btn mt-2 mx-4 mb-0 variant-filled-primary rounded-full"

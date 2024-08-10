@@ -12,14 +12,18 @@
         getDrawerStore,
     } from "@skeletonlabs/skeleton";
     import type { ConicStop } from "@skeletonlabs/skeleton";
+    import { dummyListingCards } from "$lib/dummyData/listingCards.js"; 
+
     const conicStops: ConicStop[] = [
         { color: "transparent", start: 0, end: 25 },
         { color: "rgb(var(--color-primary-500))", start: 75, end: 100 },
     ];
+
     let loaded = false;
     const toastStore = getToastStore();
     const drawerStore = getDrawerStore();
     let listings = [];
+    let useDummyData = false; 
 
     function openProfile() {
         drawerStore.open({
@@ -35,6 +39,16 @@
     }
 
     onMount(async () => {
+        if (useDummyData) {
+            // Use dummy data instead of fetching from Supabase
+            listings = dummyListingCards;
+            averageCoordinate = getAverageCoordinate(listings);
+            zoomLevel = getZoomLevel(listings);
+            listings = fuzzClusteredListings(listings);
+            loaded = true;
+            return;
+        }
+
         // Get user's home or default to central Sydney
         const { data: user, error: userError } = await supabase
             .from("users")

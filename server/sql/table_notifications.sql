@@ -8,3 +8,10 @@ CREATE TABLE notifications (
     message TEXT NOT NULL,
     CONSTRAINT unique_notification_per_day UNIQUE (for_user_id, date, message)
 );
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow me to manage my own notifications"
+ON notifications
+FOR ALL
+USING (for_user_id = auth.uid());

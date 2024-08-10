@@ -1,12 +1,9 @@
 <script lang="ts">
     import WeekTableListing from "$lib/WeekTableListing.svelte";
     import GeocodeSearchbar from "$lib/GeocodeSearchbar.svelte";
-    import {
-        getModalStore,
-        getModeUserPrefers,
-        getToastStore,
-    } from "@skeletonlabs/skeleton";
+    import { getModalStore, getToastStore } from "@skeletonlabs/skeleton";
     import { onMount } from "svelte";
+
     const modalStore = getModalStore();
     const toastStore = getToastStore();
     let data = $modalStore[0].meta.data;
@@ -24,6 +21,7 @@
     let availabilities = [];
     let userHomePlace;
     let userWorkPlace;
+    let isReoccurring: boolean = false;
 
     async function publishListing() {
         if (
@@ -42,25 +40,47 @@
         }
         let formattedAvailabilities = [];
 
-        // create place or retrieve id
+        // Cannot use upsert due to RLS, so attempt to insert place and listing then insert on error
+        let placeId;
         const { data: placeData, error: placeError } = await supabase
             .from("places")
-            .upsert(
-                [
-                    {
-                        address: listingAddressString,
-                        point: listingAddressPoint,
-                        suburb: listingAddressSuburb,
-                    },
-                ],
+            .insert([
                 {
-                    onConflict: ["address", "point"],
+                    address: listingAddressString,
+                    point: listingAddressPoint,
+                    suburb: listingAddressSuburb,
                 },
-            )
+            ])
             .select("*");
-        const placeId = placeData[0].place_id;
 
-        // create listing or retrieve id
+        if (placeError) {
+            if (placeError.code === "23505") {
+                const { data: placeData, error: placeError } = await supabase
+                    .from("places")
+                    .select("*")
+                    .eq("address", listingAddressString);
+                placeId = placeData[0].place_id;
+                if (placeError) {
+                    console.error("error", placeError);
+                    toastStore.trigger({
+                        message: "Error creating place",
+                        background: "variant-filled-warning",
+                    });
+                    return;
+                }
+            } else {
+                console.error("error", placeError);
+                toastStore.trigger({
+                    message: "Error creating place",
+                    background: "variant-filled-warning",
+                });
+                return;
+            }
+        } else {
+            placeId = placeData[0].place_id;
+        }
+
+        // Create listing or retrieve id
         const { data: listingData, error: listingError } = await supabase
             .from("listings")
             .upsert(
@@ -72,6 +92,8 @@
                         charging_mode: chargingMode,
                         charger_type: chargerType,
                         sustainable,
+                        is_recurring: isReoccurring,
+                        recurrence_id: isReoccurring ? null : undefined, // To be set after the first listing creation
                     },
                 ],
                 {
@@ -83,31 +105,70 @@
                         "charger_type",
                         "sustainable",
                     ],
-                },
+                }
             )
             .select("*");
+
+        if (listingError) {
+            console.error("error", listingError);
+            toastStore.trigger({
+                message: "Error creating or updating listing",
+                background: "variant-filled-warning",
+            });
+            return;
+        }
+
         const listingId = listingData[0].listing_id;
 
-        // format and insert availabilities
-        for (const availability of availabilities) {
-            const { startTime, endTime } = availability;
-            formattedAvailabilities.push({
-                listing_id: listingId,
-                start_time: startTime,
-                end_time: endTime,
-            });
+        // Update recurrence_id for the first occurrence if it's recurring
+        if (isReoccurring) {
+            await supabase
+                .from("listings")
+                .update({ recurrence_id: listingId })
+                .eq("listing_id", listingId);
         }
+
+        // Format availabilities based on recurrence
+        if (isReoccurring) {
+            for (let i = 0; i < 4; i++) {
+                for (const availability of availabilities) {
+                    const { startTime, endTime } = availability;
+                    const newStartTime = new Date(startTime);
+                    const newEndTime = new Date(endTime);
+                    newStartTime.setDate(newStartTime.getDate() + i * 7);
+                    newEndTime.setDate(newEndTime.getDate() + i * 7);
+
+                    formattedAvailabilities.push({
+                        listing_id: listingId,
+                        start_time: newStartTime.toISOString(),
+                        end_time: newEndTime.toISOString(),
+                        recurrence_id: listingId, // Set recurrence_id for all occurrences
+                    });
+                }
+            }
+        } else {
+            for (const availability of availabilities) {
+                const { startTime, endTime } = availability;
+                formattedAvailabilities.push({
+                    listing_id: listingId,
+                    start_time: startTime,
+                    end_time: endTime,
+                });
+            }
+        }
+
         try {
             console.log(formattedAvailabilities);
-            const { data, error } = await supabase
+            const { data: availabilityData, error: availabilityError } = await supabase
                 .from("availabilities")
                 .upsert(formattedAvailabilities, {
                     onConflict: ["listing_id", "start_time"],
                 });
-            if (error) {
-                console.error("error", error);
+
+            if (availabilityError) {
+                console.error("error", availabilityError);
                 toastStore.trigger({
-                    message: "Error creating listing",
+                    message: "Error creating or updating availabilities",
                     background: "variant-filled-warning",
                 });
                 return;
@@ -127,7 +188,7 @@
     }
 
     onMount(async () => {
-        getUser();
+        await getUser();
     });
 
     async function getUser() {
@@ -135,23 +196,24 @@
             .from("users")
             .select(
                 `
-            user_name,
-            home_place:home_place_id (
-                address,
-                point,
-                suburb
-            ),
-            work_place:work_place_id (
-                address,
-                point,
-                suburb
-            )
-        `,
+                user_name,
+                home_place:home_place_id (
+                    address,
+                    point,
+                    suburb
+                ),
+                work_place:work_place_id (
+                    address,
+                    point,
+                    suburb
+                )
+            `
             )
             .eq("user_id", session.user.id)
             .single();
 
         if (error) {
+            console.error("Error fetching user data", error);
             return;
         }
         userHomePlace = userData.home_place ? userData.home_place : null;
@@ -176,8 +238,10 @@
                                 listingAddressString = userHomePlace.address;
                                 listingAddressPoint = userHomePlace.point;
                                 listingAddressSuburb = userHomePlace.suburb;
-                            }}><i class="fa-solid fa-house"></i></button
+                            }}
                         >
+                            <i class="fa-solid fa-house"></i>
+                        </button>
                         <button
                             class="btn-icon btn-icon-sm variant-filled mx-1"
                             disabled={!userWorkPlace}
@@ -185,8 +249,10 @@
                                 listingAddressString = userWorkPlace.address;
                                 listingAddressPoint = userWorkPlace.point;
                                 listingAddressSuburb = userWorkPlace.suburb;
-                            }}><i class="fa-solid fa-briefcase"></i></button
+                            }}
                         >
+                            <i class="fa-solid fa-briefcase"></i>
+                        </button>
                     </div>
                 </div>
                 <GeocodeSearchbar
@@ -199,11 +265,9 @@
             </label>
         </div>
         <div>
-            <label class="label mt-2"
-                ><span>Price per hour</span>
-                <div
-                    class="input-group input-group-divider grid-cols-[auto_1fr_auto]"
-                >
+            <label class="label mt-2">
+                <span>Price per hour</span>
+                <div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
                     <div class="input-group-shim">
                         <i class="fa-solid fa-dollar-sign"></i>
                     </div>
@@ -255,8 +319,12 @@
         </div>
         <div class="mt-1 flex justify-center items-center text-center">
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" disabled />
-                <p class="text-gray-400">Recur for 3 months</p>
+                <input
+                    class="checkbox"
+                    type="checkbox"
+                    bind:checked={isReoccurring}
+                />
+                <p>Reoccurring Listing</p>
             </label>
         </div>
     </div>

@@ -7,3 +7,15 @@ CREATE TABLE places (
     suburb TEXT,
     UNIQUE(address, point)
 );
+
+ALTER TABLE places ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to read all places"
+ON places
+FOR ALL
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow authenticated users to create new places"
+ON places
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL);

@@ -193,6 +193,8 @@
         });
         getBookingModeData();
     }
+
+    $: console.log(focusRequest);
 </script>
 
 {#if loaded}
@@ -206,8 +208,8 @@
             <div class="flex justify-center items-center h-full">
                 {#if noData}
                     <i class="h4 mt-20">
-                        No listings for this window. List charging availability
-                        to start making a difference.
+                        No bookings for this window. Visit the dashboard or
+                        search to find chargers to book.
                     </i>
                 {:else}
                     <i class="h4 mt-20"
