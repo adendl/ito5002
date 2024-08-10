@@ -93,7 +93,7 @@
                         charger_type: chargerType,
                         sustainable,
                         is_recurring: isReoccurring,
-                        recurrence_id: isReoccurring ? null : undefined, // To be set after the first listing creation
+                        recurrence_id: isReoccurring ? null : undefined, 
                     },
                 ],
                 {
@@ -142,7 +142,7 @@
                         listing_id: listingId,
                         start_time: newStartTime.toISOString(),
                         end_time: newEndTime.toISOString(),
-                        recurrence_id: listingId, // Set recurrence_id for all occurrences
+                        recurrence_id: listingId, 
                     });
                 }
             }

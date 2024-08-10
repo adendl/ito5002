@@ -23,7 +23,7 @@
     let sustainable;
     let isRecurring;
     let recurrenceId;
-    let updateScope = 'all'; // Options: 'this', 'all'
+    let updateScope = 'all';
     let loaded = false;
     const conicStops: ConicStop[] = [
         { color: "transparent", start: 0, end: 25 },
@@ -145,7 +145,7 @@
 
         // Handle updating recurring listings based on user choice
         if (isRecurring && updateScope === 'this') {
-            // Convert the current occurrence to a non-recurring listing
+            // Update only the current occurrence
             const { data: updatedOccurrenceData, error: occurrenceError } = await supabase
                 .from("listings")
                 .update({ is_recurring: false, recurrence_id: null })
@@ -159,7 +159,7 @@
                 console.error("error", occurrenceError);
             }
         } else if (isRecurring && updateScope === 'all') {
-            // Apply changes to all future occurrences
+            // Update all future occurrences
             const { data: allFutureOccurrences, error: futureError } = await supabase
                 .from("listings")
                 .update({
@@ -186,14 +186,15 @@
     }
 
     async function removeAvailabilities() {
-        // Get all availabilities for this listing and their bookings
+    if (!isRecurring) {
+        // Get all availabilities for this listing and their bookings (not recurring listing)
         const { data, error } = await supabase
             .from("availabilities")
             .select(
                 `
-        *,
-        bookings(*)
-    `,
+            *,
+            bookings(*)
+        `,
             )
             .eq("listing_id", $modalStore[0].meta.listing_id);
 
@@ -219,7 +220,6 @@
             return;
         }
 
-        // Remove availabilities
         const { data: deleteData, error: deleteError } = await supabase
             .from("availabilities")
             .delete()
@@ -241,11 +241,82 @@
                 background: "variant-filled-success",
             });
         }
-    }
+    } else {
+        // For recurring listings
+        if (updateScope === 'this') {
+            // Remove only current listing's availabilities
+            const { data, error } = await supabase
+                .from("availabilities")
+                .select("*")
+                .eq("listing_id", $modalStore[0].meta.listing_id);
 
-    async function removeListing() {
-        // Remove availabilities before deleting the listing
-        await removeAvailabilities();
+            if (error) {
+                toastStore.trigger({
+                    message: "Error fetching availabilities",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", error);
+                return;
+            }
+
+            // Remove availabilities
+            const { data: deleteData, error: deleteError } = await supabase
+                .from("availabilities")
+                .delete()
+                .eq("listing_id", $modalStore[0].meta.listing_id);
+            if (deleteError) {
+                toastStore.trigger({
+                    message: "Error removing availabilities",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", deleteError);
+            } else {
+                toastStore.trigger({
+                    message: "Availabilities removed successfully",
+                    background: "variant-filled-success",
+                });
+            }
+        } else if (updateScope === 'all') {
+            // Remove all future availabilities with the same recurrence ID
+            const { data, error } = await supabase
+                .from("availabilities")
+                .select("*")
+                .eq("recurrence_id", recurrenceId);
+
+            if (error) {
+                toastStore.trigger({
+                    message: "Error fetching future availabilities",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", error);
+                return;
+            }
+
+            // Remove all future availabilities
+            const { data: deleteData, error: deleteError } = await supabase
+                .from("availabilities")
+                .delete()
+                .eq("recurrence_id", recurrenceId);
+            if (deleteError) {
+                toastStore.trigger({
+                    message: "Error removing future availabilities",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", deleteError);
+            } else {
+                toastStore.trigger({
+                    message: "Future availabilities removed successfully",
+                    background: "variant-filled-success",
+                });
+            }
+        }
+    }
+}
+
+async function removeListing() {
+    if (!isRecurring) {
+        // For non-recurring listings
+        await removeAvailabilities(); 
 
         let { data: data, error: error } = await supabase
             .from("listings")
@@ -263,7 +334,110 @@
                 background: "variant-filled-success",
             });
         }
+    } else {
+        // For recurring listings
+        if (updateScope === 'this') {
+            // Cancel current bookings only
+            const { data: bookings, error: bookingsError } = await supabase
+                .from("bookings")
+                .select("*")
+                .eq("listing_id", $modalStore[0].meta.listing_id);
+
+            if (bookingsError) {
+                toastStore.trigger({
+                    message: "Error fetching bookings",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", bookingsError);
+                return;
+            }
+
+            for (const booking of bookings) {
+                const { data: cancelData, error: cancelError } = await supabase
+                    .from("bookings")
+                    .delete()
+                    .eq("booking_id", booking.booking_id);
+
+                if (cancelError) {
+                    toastStore.trigger({
+                        message: "Error canceling booking",
+                        background: "variant-filled-warning",
+                    });
+                    console.error("error", cancelError);
+                }
+            }
+
+            await removeAvailabilities(); 
+
+            let { data: data, error: error } = await supabase
+                .from("listings")
+                .delete()
+                .eq("listing_id", $modalStore[0].meta.listing_id);
+            if (error) {
+                toastStore.trigger({
+                    message: "Error removing listing",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", error);
+            } else {
+                toastStore.trigger({
+                    message: "Listing removed successfully",
+                    background: "variant-filled-success",
+                });
+            }
+        } else if (updateScope === 'all') {
+
+            // Cancel all future bookings
+            const { data: futureBookings, error: futureBookingsError } = await supabase
+                .from("bookings")
+                .select("*")
+                .eq("recurrence_id", recurrenceId);
+
+            if (futureBookingsError) {
+                toastStore.trigger({
+                    message: "Error fetching future bookings",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", futureBookingsError);
+                return;
+            }
+
+            for (const booking of futureBookings) {
+                const { data: cancelData, error: cancelError } = await supabase
+                    .from("bookings")
+                    .delete()
+                    .eq("booking_id", booking.booking_id);
+
+                if (cancelError) {
+                    toastStore.trigger({
+                        message: "Error canceling booking",
+                        background: "variant-filled-warning",
+                    });
+                    console.error("error", cancelError);
+                }
+            }
+
+            await removeAvailabilities(); 
+
+            let { data: data, error: error } = await supabase
+                .from("listings")
+                .delete()
+                .eq("recurrence_id", recurrenceId);
+            if (error) {
+                toastStore.trigger({
+                    message: "Error removing future listings",
+                    background: "variant-filled-warning",
+                });
+                console.error("error", error);
+            } else {
+                toastStore.trigger({
+                    message: "Future listings removed successfully",
+                    background: "variant-filled-success",
+                });
+            }
+        }
     }
+}
 
     const popupHover: PopupSettings = {
         event: "hover",
@@ -358,8 +532,8 @@
                     <label class="label">
                         <span>Update scope</span>
                         <select class="select" bind:value={updateScope}>
-                            <option value="all">All future bookings</option>
-                            <option value="this">This booking only</option>
+                            <option value="all">This Listing Only</option>
+                            <option value="this">All Future Listings</option>
                         </select>
                     </label>
                 </div>
