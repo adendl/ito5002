@@ -193,6 +193,8 @@
         });
         getBookingModeData();
     }
+
+    $: console.log(focusRequest);
 </script>
 
 {#if loaded}

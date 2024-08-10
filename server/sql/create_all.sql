@@ -301,6 +301,12 @@ BEGIN
     JOIN availabilities a ON l.listing_id = a.listing_id
     WHERE a.availability_id = OLD.availability_id;
 
+    -- Handle special case of cascaded delete
+    IF notification_date IS NULL THEN
+        RAISE WARNING 'Notification date is NULL for availability_id: %', OLD.availability_id;
+        RETURN OLD; 
+    END IF;
+
     SELECT start_time::DATE INTO notification_date
     FROM availabilities
     WHERE availability_id = OLD.availability_id;
