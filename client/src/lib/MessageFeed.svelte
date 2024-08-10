@@ -24,7 +24,8 @@
             .from("notifications")
             .select("*")
             .order("timestamp", { ascending: false })
-            .eq("for_user_id", session.user.id);
+            .eq("for_user_id", session.user.id)
+            .limit(30);
 
         if (error) {
             console.error("error", error);
@@ -41,6 +42,10 @@
             return "Your request was accepted for a charger on ";
         } else if (messageText === "request_rejected") {
             return "Your request was rejected for a charger on ";
+        } else if (messageText === "bookee_cancelled") {
+            return "A user cancelled their booking for your charger on ";
+        } else if (messageText === "listee_cancelled") {
+            return "The listing owner cancelled your booking for a charger on ";
         } else {
             return "Error parsing message for event on ";
         }

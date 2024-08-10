@@ -1,5 +1,7 @@
 set search_path = "$user", public, auth, extensions;
 
+-- TABLES & POLICIES
+
 DROP TABLE IF EXISTS places CASCADE;
 
 CREATE TABLE places (
@@ -13,7 +15,7 @@ CREATE TABLE places (
 DROP TABLE IF EXISTS users CASCADE;
 
 CREATE TABLE users (
-    user_id UUID PRIMARY KEY REFERENCES auth.users (id),
+    user_id UUID PRIMARY KEY NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     user_name TEXT,
     home_place_id UUID REFERENCES places(place_id),
     work_place_id UUID REFERENCES places(place_id)
@@ -29,7 +31,8 @@ CREATE TABLE contacts (
 );
 
 ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow access to phone number if booked together" 
+
+CREATE POLICY "Allow me to access the contact information of a user that has booked my listing" 
 ON contacts 
 FOR SELECT 
 USING (
@@ -39,9 +42,23 @@ USING (
     JOIN availabilities a ON b.availability_id = a.availability_id
     JOIN listings l ON a.listing_id = l.listing_id
     WHERE 
-      (b.booking_user_id = auth.uid() AND l.user_id = contacts.user_id) 
-      OR 
-      (b.booking_user_id = contacts.user_id AND l.user_id = auth.uid())
+      b.booking_user_id = contacts.user_id 
+      AND l.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Allow access to my contact information to a user whose listing I have booked" 
+ON contacts 
+FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM bookings b
+    JOIN availabilities a ON b.availability_id = a.availability_id
+    JOIN listings l ON a.listing_id = l.listing_id
+    WHERE 
+      b.booking_user_id = auth.uid() 
+      AND contacts.user_id = l.user_id 
   )
 );
 
@@ -105,5 +122,200 @@ CREATE TABLE bookings (
     booking_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     availability_id UUID NOT NULL REFERENCES availabilities(availability_id) ON DELETE CASCADE,
     booking_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    booking_request_id UUID NOT NULL REFERENCES booking_requests(booking_request_id) ON DELETE CASCADE,
     CONSTRAINT unique_booking UNIQUE (availability_id)
 );
+
+DROP TABLE IF EXISTS notifications CASCADE;
+
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    for_user_id UUID NOT NULL REFERENCES users(user_id),
+    date DATE NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    message TEXT NOT NULL,
+    CONSTRAINT unique_notification_per_day UNIQUE (for_user_id, date, message)
+);
+
+-- FUNCTIONS
+
+DROP FUNCTION IF EXISTS get_listings_near (geography, integer);
+
+CREATE OR REPLACE FUNCTION get_listings_near (query_location geography, limit_count integer)
+RETURNS TABLE (
+  listing_id uuid,
+  user_id uuid,
+  place_id uuid,
+  price_per_hour numeric,
+  charging_mode text,
+  charger_type text,
+  sustainable boolean,
+  distance DOUBLE PRECISION,
+  suburb text,
+  address text,
+  user_name text,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        listings.listing_id,
+        listings.user_id,
+        listings.place_id,
+        listings.price_per_hour,
+        listings.charging_mode,
+        listings.charger_type,
+        listings.sustainable,
+        ST_Distance(places.point, query_location) AS distance,
+        places.suburb,
+        places.address,
+        users.user_name,
+        ST_Y(places.point::geometry) AS latitude,
+        ST_X(places.point::geometry) AS longitude
+    FROM 
+        listings
+    JOIN 
+        places ON listings.place_id = places.place_id
+    JOIN 
+        users ON listings.user_id = users.user_id
+    WHERE 
+        listings.user_id <> auth.uid()
+        AND EXISTS (
+            SELECT 1
+            FROM availabilities
+            WHERE availabilities.listing_id = listings.listing_id
+              AND availabilities.start_time BETWEEN NOW() AND (NOW() + INTERVAL '1 month')
+        )
+    ORDER BY 
+        distance
+    LIMIT 
+        limit_count;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP FUNCTION handle_new_user() CASCADE;
+
+create function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = ''
+as $$
+begin
+  insert into public.users (user_id)
+  values (new.id);
+  return new;
+end;
+$$;
+
+CREATE OR REPLACE FUNCTION notify_booking_deletion()
+RETURNS TRIGGER AS $$
+DECLARE
+    listing_owner UUID;
+    recipient_user UUID;
+    notification_message TEXT;
+    notification_date DATE;
+BEGIN
+    SELECT l.user_id INTO listing_owner
+    FROM listings l
+    JOIN availabilities a ON l.listing_id = a.listing_id
+    WHERE a.availability_id = OLD.availability_id;
+
+    SELECT start_time::DATE INTO notification_date
+    FROM availabilities
+    WHERE availability_id = OLD.availability_id;
+
+    IF OLD.booking_user_id = current_setting('user.id', true)::uuid THEN
+        recipient_user := listing_owner;
+        notification_message := 'bookee_cancelled';
+    ELSE
+        recipient_user := OLD.booking_user_id;
+        notification_message := 'listee_cancelled';
+    END IF;
+
+    INSERT INTO notifications (for_user_id, date, message)
+    VALUES (recipient_user, notification_date, notification_message)
+    ON CONFLICT (for_user_id, date, message)
+    DO UPDATE SET timestamp = NOW();
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION notify_listing_owner()
+RETURNS TRIGGER AS $$
+DECLARE
+    listing_owner UUID;
+    notification_message TEXT;
+    notification_date DATE;
+BEGIN
+    SELECT l.user_id INTO listing_owner
+    FROM listings l
+    JOIN availabilities a ON l.listing_id = a.listing_id
+    WHERE a.availability_id = NEW.availability_id;
+    SELECT start_time::DATE INTO notification_date
+    FROM availabilities
+    WHERE availability_id = NEW.availability_id;
+
+    notification_message := 'booking_request';
+    INSERT INTO notifications (for_user_id, date, message)
+    VALUES (listing_owner, notification_date, notification_message)
+    ON CONFLICT (for_user_id, date, message)
+    DO UPDATE SET timestamp = NOW();
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION notify_booking_user_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    notification_message TEXT;
+BEGIN
+    IF NEW.status <> OLD.status THEN
+        IF NEW.status = 'accepted' THEN
+            notification_message := 'request_accepted';
+        ELSIF NEW.status = 'rejected' THEN
+            notification_message := 'request_rejected';
+        ELSE
+            RETURN NEW; 
+        END IF;
+        INSERT INTO notifications (for_user_id, date, message)
+        VALUES (NEW.booking_user_id, NOW()::DATE, notification_message)
+        ON CONFLICT (for_user_id, date, message)
+        DO UPDATE SET timestamp = NOW();
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- TRIGGERS
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+DROP TRIGGER IF EXISTS booking_request_notification ON booking_requests;
+
+CREATE TRIGGER booking_request_notification
+AFTER INSERT ON booking_requests
+FOR EACH ROW
+EXECUTE FUNCTION notify_listing_owner();
+
+DROP TRIGGER IF EXISTS booking_request_status_change_notification ON booking_requests;
+
+CREATE TRIGGER booking_request_status_change_notification
+AFTER UPDATE OF status ON booking_requests
+FOR EACH ROW
+EXECUTE FUNCTION notify_booking_user_status_change();
+
+DROP TRIGGER IF EXISTS booking_deletion_notification ON bookings;
+
+CREATE TRIGGER booking_deletion_notification
+AFTER DELETE ON bookings
+FOR EACH ROW
+EXECUTE FUNCTION notify_booking_deletion();
+
