@@ -12,6 +12,18 @@ CREATE TABLE places (
     UNIQUE(address, point)
 );
 
+ALTER TABLE places ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to read all places"
+ON places
+FOR ALL
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow authenticated users to create new places"
+ON places
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL);
+
 DROP TABLE IF EXISTS users CASCADE;
 
 CREATE TABLE users (
@@ -20,6 +32,18 @@ CREATE TABLE users (
     home_place_id UUID REFERENCES places(place_id),
     work_place_id UUID REFERENCES places(place_id)
 );
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow me to manage my own user information"
+ON users
+FOR ALL 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow authenticated users to read all users"
+ON users
+FOR SELECT
+USING (auth.uid() IS NOT NULL);
 
 DROP TABLE IF EXISTS contacts CASCADE;
 
@@ -62,24 +86,9 @@ USING (
   )
 );
 
-CREATE POLICY "Allow users to select their own phone number" 
+CREATE POLICY "Allow me to manage my own contact information" 
 ON contacts 
-FOR SELECT 
-USING (user_id = auth.uid());
-
-CREATE POLICY "Allow users to insert their own phone number" 
-ON contacts 
-FOR INSERT 
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Allow users to update their own phone number" 
-ON contacts 
-FOR UPDATE 
-USING (user_id = auth.uid());
-
-CREATE POLICY "Allow users to delete their own phone number" 
-ON contacts 
-FOR DELETE 
+FOR ALL 
 USING (user_id = auth.uid());
 
 DROP TABLE IF EXISTS listings CASCADE;
@@ -95,6 +104,18 @@ CREATE TABLE listings (
     CONSTRAINT unique_listing UNIQUE (user_id, place_id, price_per_hour, charging_mode, charger_type, sustainable) 
 );
 
+ALTER TABLE listings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow access to all listings for authenticated users"
+ON listings
+FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow me to manage my own listings"
+ON listings
+FOR ALL
+USING (user_id = auth.uid());
+
 DROP TABLE IF EXISTS availabilities CASCADE;
 
 CREATE TABLE availabilities (
@@ -106,6 +127,18 @@ CREATE TABLE availabilities (
     CONSTRAINT unique_availability UNIQUE (listing_id, start_time)
 );
 
+ALTER TABLE availabilities ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow access to all availabilities for authenticated users"
+ON availabilities
+FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow me to manage my own availabilities"
+ON availabilities
+FOR ALL
+USING (EXISTS (SELECT 1 FROM listings WHERE listing_id = availabilities.listing_id AND user_id = auth.uid()));
+
 DROP TABLE IF EXISTS booking_requests CASCADE;
 
 CREATE TABLE booking_requests (
@@ -114,6 +147,26 @@ CREATE TABLE booking_requests (
     booking_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL DEFAULT 'submitted',
     CONSTRAINT unique_booking_request UNIQUE (availability_id, booking_user_id)
+);
+
+ALTER TABLE booking_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow me to manage booking requests I have made"
+ON booking_requests
+FOR ALL
+USING (booking_user_id = auth.uid());
+
+CREATE POLICY "Allow me to manage booking requests for my listings"
+ON booking_requests
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM availabilities
+        JOIN listings ON availabilities.listing_id = listings.listing_id
+        WHERE availabilities.availability_id = booking_requests.availability_id
+        AND listings.user_id = auth.uid()
+    )
 );
 
 DROP TABLE IF EXISTS bookings CASCADE;
@@ -126,6 +179,26 @@ CREATE TABLE bookings (
     CONSTRAINT unique_booking UNIQUE (availability_id)
 );
 
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow me to manage bookings I have made"
+ON bookings
+FOR ALL
+USING (booking_user_id = auth.uid());
+
+CREATE POLICY "Allow me to manage bookings for my listings"
+ON bookings
+FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM availabilities
+        JOIN listings ON availabilities.listing_id = listings.listing_id
+        WHERE availabilities.availability_id = bookings.availability_id
+        AND listings.user_id = auth.uid()
+    )
+);
+
 DROP TABLE IF EXISTS notifications CASCADE;
 
 CREATE TABLE notifications (
@@ -136,6 +209,13 @@ CREATE TABLE notifications (
     message TEXT NOT NULL,
     CONSTRAINT unique_notification_per_day UNIQUE (for_user_id, date, message)
 );
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow me to manage my own notifications"
+ON notifications
+FOR ALL
+USING (for_user_id = auth.uid());
 
 -- FUNCTIONS
 
@@ -240,7 +320,7 @@ BEGIN
 
     RETURN OLD;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION notify_listing_owner()
 RETURNS TRIGGER AS $$
@@ -265,7 +345,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION notify_booking_user_status_change()
 RETURNS TRIGGER AS $$
@@ -293,8 +373,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
-
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- TRIGGERS
 
