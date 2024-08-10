@@ -71,6 +71,16 @@
             second: "numeric",
         });
     }
+
+    function navigateToMessageDate(message) {
+        let calendarType;
+        if (["booking_request", "bookee_cancelled"].includes(message.message)) {
+            calendarType = "listings";
+        } else {
+            calendarType = "bookings";
+        }
+        window.location.href = `/calendar/?calendarType=${calendarType}&date=${message.date}`;
+    }
 </script>
 
 {#if !loaded}
@@ -83,7 +93,10 @@
     </div>
 {:else}
     {#each messages as message}
-        <div class="card p-4 m-4 card-hover">
+        <div
+            class="card p-4 m-4 card-hover"
+            on:click={() => navigateToMessageDate(message)}
+        >
             <p class="text-sm text-gray-400">
                 {prettyTimestamp(message.timestamp)}
             </p>
