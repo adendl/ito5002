@@ -10,6 +10,9 @@
         ConicGradient,
         getToastStore,
         getDrawerStore,
+        ListBox,
+        ListBoxItem,
+        popup,
     } from "@skeletonlabs/skeleton";
     import type { ConicStop } from "@skeletonlabs/skeleton";
     const conicStops: ConicStop[] = [
@@ -19,7 +22,10 @@
     let loaded = false;
     const toastStore = getToastStore();
     const drawerStore = getDrawerStore();
+    let filteredChargerType = "";
     let listings = [];
+    let addressPoint;
+    $: filteredChargerType, getNearbyListings();
 
     function openProfile() {
         drawerStore.open({
@@ -33,6 +39,13 @@
             position: "right",
         });
     }
+
+    const popupCombobox: PopupSettings = {
+        event: "click",
+        target: "popupCombobox",
+        placement: "bottom",
+        closeQuery: ".listbox-item",
+    };
 
     onMount(async () => {
         // Get user's home or default to central Sydney
@@ -50,12 +63,12 @@
             });
         }
 
-        const homePlacePoint =
+        addressPoint =
             user?.home_place?.point ||
             "0101000020E610000041BCAE5FB0E66240C87C40A033EF40C0";
 
         const { data, error } = await supabase.rpc("get_listings_near", {
-            query_location: homePlacePoint,
+            query_location: addressPoint,
             limit_count: 100,
         });
         if (error) {
@@ -68,6 +81,10 @@
         }
         listings = data;
         if (listings.length === 0) {
+            toastStore.trigger({
+                message: "No listings found",
+                background: "variant-filled-error",
+            });
             loaded = true;
             return;
         }
@@ -77,6 +94,47 @@
         listings = listings;
         loaded = true;
     });
+
+    async function getNearbyListings() {
+        console.log("getNearbyListings", addressPoint);
+        if (!addressPoint || addressPoint === "") return;
+        loaded = false;
+        mapComponent = null;
+        averageCoordinate = null;
+        zoomLevel = null;
+        const { data, error } = await supabase.rpc("get_listings_near", {
+            query_location: addressPoint,
+            limit_count: 100,
+            charger_type_param: filteredChargerType
+                ? filteredChargerType
+                : null,
+        });
+        if (error) {
+            console.error("error", error);
+            toastStore.trigger({
+                message: "Error fetching listings",
+                background: "variant-filled-error",
+            });
+            loaded = true;
+            return;
+        } else {
+            if (data.length === 0) {
+                toastStore.trigger({
+                    message: "No results found",
+                    background: "variant-filled-error",
+                });
+                loaded = true;
+                listings = [];
+                return;
+            }
+            listings = data;
+            listings = listings;
+            averageCoordinate = getAverageCoordinate(listings);
+            zoomLevel = getZoomLevel(listings);
+            listings = fuzzClusteredListings(listings);
+        }
+        loaded = true;
+    }
 
     // Map component
     import { Map, Marker } from "@beyonk/svelte-mapbox";
@@ -105,10 +163,51 @@
                     <button
                         type="button"
                         class="btn m-2 variant-filled"
-                        disabled><i class="fa-solid fa-filter"></i></button
+                        use:popup={popupCombobox}
                     >
-                </div>
-            </span>
+                        <i class="fa-solid fa-filter"></i>
+                    </button>
+                    <div
+                        class="card w-48 shadow-xl py-2 z-50"
+                        data-popup="popupCombobox"
+                    >
+                        <ListBox rounded="rounded-none">
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="">All</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="Mennekes">Mennekes</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="Type 1">Type 1</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="CHaDeMO">CHaDeMO</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="CCS">CCS</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="CCS2">CCS2</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="Tesla">Tesla</ListBoxItem
+                            >
+                            <ListBoxItem
+                                bind:group={filteredChargerType}
+                                value="GB/T">GB/T</ListBoxItem
+                            >
+                        </ListBox>
+                    </div>
+                </div></span
+            >
             {#each listings as listingCard}
                 <ListingCard {...listingCard} {data} />
             {:else}
