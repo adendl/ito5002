@@ -68,7 +68,7 @@
 
         <div class="table-container">
             <table class="table table-hover">
-                <thead>
+                <thead class="text-primary-300">
                     <tr class="text-center">
                         <th></th>
                         {#each days as day, i}

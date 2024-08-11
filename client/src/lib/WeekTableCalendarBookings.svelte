@@ -66,14 +66,14 @@
 
         <div class="table-container">
             <table class="table table-hover">
-                <thead>
+                <thead class="text-secondary-300">
                     <tr class="text-center">
                         <th></th>
                         {#each days as day, i}
                             <th
                                 class="text-center {targetDate.split('-')[2] ===
                                 displayDates[i].split(' ')[0].padStart(2, 0)
-                                    ? 'variant-ghost-primary'
+                                    ? 'variant-ghost-secondary'
                                     : ''}"
                                 style="width: calc(100% / 7)"
                                 >{day}{#if displayDates}<br />{displayDates[

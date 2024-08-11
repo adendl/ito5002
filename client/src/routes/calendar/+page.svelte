@@ -42,9 +42,9 @@
         <TabGroup class="mt-2">
             <Tab bind:group={tabSet} name="tab1" value={0}>
                 <svelte:fragment slot="lead"></svelte:fragment>
-                <span>My listings</span>
+                <span class="text-primary-300">My listings</span>
             </Tab>
-            <Tab bind:group={tabSet} name="tab2" value={1}>My bookings</Tab>
+            <Tab bind:group={tabSet} name="tab2" value={1}><span class="text-secondary-300">My bookings</span></Tab>
             <svelte:fragment slot="panel">
                 {#if tabSet === 0}
                     <CalendarListingView bind:data bind:selectedDate />
