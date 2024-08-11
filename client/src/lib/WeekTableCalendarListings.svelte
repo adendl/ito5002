@@ -104,7 +104,7 @@
                                         on:click={() => {
                                             focusElement = calendarData[j][i];
                                         }}
-                                        class="chip m-0 w-full h-full variant-{calendarData[
+                                        class="chip m-0 w-full h-full text-white bg-yellow-500 !important variant-{calendarData[
                                             j
                                         ][i].state === 'booked'
                                             ? 'filled-success'
