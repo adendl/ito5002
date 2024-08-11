@@ -220,8 +220,13 @@ USING (for_user_id = auth.uid());
 -- FUNCTIONS
 
 DROP FUNCTION IF EXISTS get_listings_near (geography, integer);
+DROP FUNCTION IF EXISTS get_listings_near (geography, integer, text);
 
-CREATE OR REPLACE FUNCTION get_listings_near (query_location geography, limit_count integer)
+CREATE OR REPLACE FUNCTION get_listings_near (
+    query_location geography, 
+    limit_count integer,
+    charger_type_param text DEFAULT NULL
+)
 RETURNS TABLE (
   listing_id uuid,
   user_id uuid,
@@ -261,6 +266,7 @@ BEGIN
         users ON listings.user_id = users.user_id
     WHERE 
         listings.user_id <> auth.uid()
+        AND (charger_type_param IS NULL OR listings.charger_type = charger_type_param)
         AND EXISTS (
             SELECT 1
             FROM availabilities
